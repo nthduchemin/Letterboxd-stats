@@ -6,6 +6,7 @@
   let rewatches = [];    // {name, year}, lignes "Rewatch" du journal
   let ratings = null;    // Map "nom|année" -> note, ou null sans ratings.csv
   let likes = null;      // Set "nom|année", ou null
+  let likeDates = [];   // {k: "nom|année", d: date du coup de cœur}, d'après likes.csv
   let diaryRows = [], username = "", favorites = [];   // journal, pseudo Letterboxd, liens du top 4
   let running = false, cancelled = false;
 
@@ -68,14 +69,14 @@
       // Colonne « Favorite Films » : jusqu'à 4 liens boxd.it ; sans lien, rien à afficher
       if (p && p["Favorite Films"]) favorites = p["Favorite Films"].split(/[,\s]+/).map((u) => u.replace(/\/$/, "")).filter((u) => /^https?:\/\//.test(u)).slice(0, 4);
     }
-    ratings = null; likes = null;
+    ratings = null; likes = null; likeDates = [];
     if (texts.ratings) {
       ratings = new Map();
       parseCSV(texts.ratings).forEach((r) => { const v = parseFloat(r.Rating); if (r.Name && !isNaN(v)) ratings.set(r.Name + "|" + r.Year, v); });
     }
     if (texts.likes) {
       likes = new Set();
-      parseCSV(texts.likes).forEach((r) => { if (r.Name) likes.add(r.Name + "|" + r.Year); });
+      parseCSV(texts.likes).forEach((r) => { if (r.Name) { likes.add(r.Name + "|" + r.Year); likeDates.push({ k: r.Name + "|" + r.Year, d: r.Date || "" }); } });
     }
     if (!films.length) { showErr("Aucun film trouvé dans ce fichier. Il faut watched.csv, ou le ZIP complet."); return; }
     $("drop").classList.add("ok");
@@ -189,6 +190,8 @@
             n: d.vote_count || 0,
             p: d.poster_path || "",
             i: d.id,
+            col: d.belongs_to_collection ? d.belongs_to_collection.id : 0,    // saga / franchise TMDB
+            cn: d.belongs_to_collection ? d.belongs_to_collection.name : "",
             rd: d.release_date || "",
             t: cast.slice(0, 3).map((x) => x.id)                             // 3 premiers rôles du générique
           };
@@ -216,7 +219,16 @@
     const worker = () => {
       if (cancelled || fatal || !queue.length) return Promise.resolve();
       const f = queue.shift(), k = keyOf(f);
-      const p = (k in cache) ? Promise.resolve() : lookup(f, key).then((res) => { cache[k] = res; });
+      const c0 = cache[k];
+      let p;
+      if (!(k in cache) || (c0 && c0.ok && c0.col === undefined && !c0.i)) p = lookup(f, key).then((res) => { cache[k] = res; });
+      else if (c0 && c0.ok && c0.col === undefined) {
+        // Ancienne entrée du cache : on ne récupère que la collection (saga) du film
+        p = tmdb("movie/" + c0.i, { language: "fr-FR" }, key).then((d) => {
+          c0.col = d.belongs_to_collection ? d.belongs_to_collection.id : 0;
+          c0.cn = d.belongs_to_collection ? d.belongs_to_collection.name : "";
+        });
+      } else p = Promise.resolve();
       return p.catch((e) => { if (e.fatal) fatal = true; })
         .then(() => { done++; if (done % 10 === 0) { tick(); saveCache(); } return worker(); });
     };
@@ -403,10 +415,16 @@
     if (r.person) box.appendChild(personBox(r.person, r.label));
     else {
       const cap = document.createElement("p"); cap.className = "cap";
-      cap.textContent = r.items.some((m) => m.r != null) ? "Tes 5 films les mieux notés" : "Les 5 films les mieux notés par TMDB";
+      cap.textContent = r.full ? "Les films de cette saga que tu as vus"
+        : r.items.some((m) => m.r != null) ? "Tes 5 films les mieux notés" : "Les 5 films les mieux notés par TMDB";
       box.appendChild(cap);
     }
-    box.appendChild(filmsList(r.items, { limit: r.person ? 0 : 5, roleOf: r.roleOf }));
+    box.appendChild(filmsList(r.items, { limit: r.person || r.full ? 0 : 5, roleOf: r.roleOf }));
+    if (r.missing && r.missing.length) {
+      const ms = document.createElement("p"); ms.className = "hint";
+      ms.textContent = "Il te manque : " + r.missing.join(", ") + ".";
+      box.appendChild(ms);
+    }
     return box;
   }
 
@@ -560,6 +578,9 @@
   }
 
   /* ---------- Affichage ---------- */
+  const roleOf = (m, id) => (m.m.concat(m.f, m.u).indexOf(id) >= 0 ? "rôle majeur" : "second rôle");
+  const castOf = (x) => [].concat(x.m || [], x.f || [], x.u || [], x.o || []);
+
   function render() {
     const withRe = $("rewatch").checked && rewatches.length;
     const all = [], missing = [];
@@ -608,12 +629,11 @@
     rank("decades", decs.map((d) => ({ label: d.k + "s", items: d.items, value: d.n + " · " + Math.round(d.n / all.length * 100) + " %", frac: d.n / dmax })));
     const dirs = group(all, (x) => x.d).sort(byCountP);
     rank("directors", countRows(named(dirs.slice(0, 10)), { tips: "people" }));
-    const roleOf = (m, id) => (m.m.concat(m.f, m.u).indexOf(id) >= 0 ? "rôle majeur" : "second rôle");
     const men = group(all, (x) => x.m || []).sort(byCountP);
     rank("actorsM", countRows(named(men.slice(0, 10)), { tips: "people" }));
     const women = group(all, (x) => x.f || []).sort(byCountP);
     rank("actorsF", countRows(named(women.slice(0, 10)), { tips: "people" }));
-    const everyone = group(all, (x) => [].concat(x.m || [], x.f || [], x.u || [], x.o || [])).sort(byCountP);
+    const everyone = group(all, castOf).sort(byCountP);
     rank("actorsAll", countRows(named(everyone.slice(0, 10)), { tips: "people", roleOf: roleOf }));
     // Les films de l'URSS sont comptés avec la Russie
     const ussr = all.some((x) => (x.c || []).indexOf("SU") >= 0);
@@ -627,14 +647,16 @@
 
     renderRatings(all, genres);
     renderFavs(all);
+    renderCollections(all);
 
-    // Plus revus : films revus au moins 2 fois
+    // Plus revus : films revus au moins 2 fois, avec la date de chaque revisionnage (diary.csv)
     const byKey = new Map(); all.forEach((x) => byKey.set(x.name + "|" + x.year, x));
-    const reCount = new Map();
-    rewatches.forEach((f) => { const k = keyOf(f); reCount.set(k, (reCount.get(k) || 0) + 1); });
-    const reRows = Array.from(reCount.entries()).filter((e) => e[1] >= 2).sort((a, b) => b[1] - a[1]).slice(0, 10);
+    const reDates = new Map();
+    rewatches.forEach((f) => { const k = keyOf(f); if (!reDates.has(k)) reDates.set(k, []); reDates.get(k).push(f.date); });
+    const reRows = Array.from(reDates.entries()).filter((e) => e[1].length >= 2)
+      .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0])).slice(0, 10);
     $("rePanel").hidden = !reRows.length;
-    if (reRows.length) rank("reTop", reRows.map((e) => ({ film: byKey.get(e[0]), label: e[0].split("|")[0], value: e[1] + " revisionnages", frac: e[1] / reRows[0][1] })));
+    if (reRows.length) renderReTop(reRows, byKey);
 
     renderYear(byKey);
 
@@ -648,28 +670,100 @@
     $("results").scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  // Top 4 de la personne : liens du profil retrouvés dans la liste des films vus (même lien Letterboxd), affiches TMDB
-  function renderFavs(all) {
-    const byUri = new Map(); all.forEach((x) => { if (x.uri) byUri.set(x.uri, x); });
-    const items = favorites.map((u) => byUri.get(u)).filter(Boolean);
-    const box = $("favs"), list = $("favList");
-    list.textContent = "";
-    box.hidden = !items.length;
-    if (!items.length) return;
-    $("profilePanel").hidden = false;
-    items.forEach((x) => {
-      const fg = document.createElement("figure");
-      clickable(fg, x);
-      if (x.p) {
-        const im = document.createElement("img");
-        im.src = IMG + "w342" + x.p; im.alt = "Affiche de " + x.name; im.loading = "lazy";
-        fg.appendChild(im);
-      } else { const ph = document.createElement("span"); ph.className = "ph"; fg.appendChild(ph); }
-      const cp = document.createElement("figcaption");
-      const nm = document.createElement("b"); nm.textContent = x.name;
-      const yr = document.createElement("span"); yr.textContent = x.year;
-      cp.append(nm, yr); fg.appendChild(cp); list.appendChild(fg);
+
+  /* ---------- Films les plus revus : une ligne par film, avec chaque date ---------- */
+  function renderReTop(rows, byKey) {
+    const ol = $("reTop"); ol.textContent = "";
+    const max = rows[0][1].length;
+    rows.forEach((e) => {
+      const film = byKey.get(e[0]), n = e[1].length;
+      const li = document.createElement("li");
+      const l = document.createElement("span"); l.className = "lbl"; l.textContent = film ? film.name + " (" + film.year + ")" : e[0].replace("|", " (") + ")";
+      if (film) clickable(l, film);
+      const v = document.createElement("span"); v.className = "val"; v.textContent = n + " revisionnages";
+      const t = document.createElement("span"); t.className = "track";
+      const i = document.createElement("i"); i.style.width = Math.max(2, n / max * 100) + "%"; t.appendChild(i);
+      const ch = document.createElement("ul"); ch.className = "chips";
+      e[1].slice().sort((a, b) => (isIso(a) ? 0 : 1) - (isIso(b) ? 0 : 1) || String(a).localeCompare(String(b))).forEach((d) => {
+        const c = document.createElement("li"); c.textContent = isIso(d) ? longDate(fromIso(d)) : "date inconnue"; ch.appendChild(c);
+      });
+      li.append(l, v, t, ch); ol.appendChild(li);
     });
+  }
+
+  /* ---------- Sagas et franchises (collections TMDB) ---------- */
+  let collToken = 0, collCache = {};
+  try { collCache = JSON.parse(localStorage.getItem("lb-coll-v1") || "{}"); } catch (e) {}
+  function renderCollections(all) {
+    const tok = ++collToken, panel = $("collPanel");
+    const by = new Map();
+    all.forEach((x) => { if (x.col) { if (!by.has(x.col)) by.set(x.col, []); by.get(x.col).push(x); } });
+    const ids = Array.from(by.keys()).filter((id) => by.get(id).length >= 2);
+    panel.hidden = !ids.length;
+    if (!ids.length) return;
+    rank("coll", [], 0, "Chargement des sagas…");
+    $("collNote").textContent = "";
+    const todo = ids.filter((id) => !collCache[id]), key = apiKey();
+    let next = 0;
+    const one = (id) => tmdb("collection/" + id, { language: "fr-FR" }, key).then((d) => {
+      collCache[id] = { n: d.name || "", p: (d.parts || []).map((p) => [p.id, p.release_date || "", p.title || ""]) };
+    }).catch(() => {});
+    const worker = () => (next >= todo.length || tok !== collToken) ? Promise.resolve() : one(todo[next++]).then(worker);
+    Promise.all([1, 2, 3, 4].map(worker)).then(() => {
+      if (tok !== collToken) return;
+      try { localStorage.setItem("lb-coll-v1", JSON.stringify(collCache)); } catch (e) {}
+      const today = isoOf(new Date());
+      const rows = ids.filter((id) => collCache[id]).map((id) => {
+        const items = by.get(id), c = collCache[id], mine = new Set(items.map((x) => x.i));
+        const parts = c.p.filter((p) => p[1] && p[1] <= today);
+        const total = Math.max(parts.length, 1), seen = Math.min(parts.filter((p) => mine.has(p[0])).length, total);
+        const missing = parts.filter((p) => !mine.has(p[0])).sort((a, b) => a[1].localeCompare(b[1])).map((p) => p[2]);
+        return { id: id, label: c.n || items[0].cn || "Saga", items: items, seen: seen, total: total, missing: missing, done: seen >= total };
+      }).filter((r) => r.total >= 2)
+        .sort((a, b) => b.seen - a.seen || b.seen / b.total - a.seen / a.total || b.total - a.total || a.label.localeCompare(b.label))
+        .slice(0, 30);
+      const nDone = rows.filter((r) => r.done).length;
+      $("collNote").textContent = rows.length ? rows.length + " sagas affichées, dont " + nDone + (nDone > 1 ? " complètes." : " complète.") : "";
+      rank("coll", rows.map((r) => ({
+        label: r.label, items: r.items, full: true, missing: r.missing,
+        value: r.seen + " / " + r.total + " films" + (r.done ? " · complète ✓" : ""), frac: r.seen / r.total
+      })), 0, "Impossible de charger les sagas pour le moment.");
+    });
+  }
+
+  // Top 4 de la personne : liens du profil retrouvés dans la liste des films vus (même lien Letterboxd), affiches TMDB
+  function posterFig(x, extra) {
+    const fg = document.createElement("figure");
+    clickable(fg, x);
+    if (x.p) {
+      const im = document.createElement("img");
+      im.src = IMG + "w342" + x.p; im.alt = "Affiche de " + x.name; im.loading = "lazy";
+      fg.appendChild(im);
+    } else { const ph = document.createElement("span"); ph.className = "ph"; fg.appendChild(ph); }
+    const cp = document.createElement("figcaption");
+    const nm = document.createElement("b"); nm.textContent = x.name;
+    const yr = document.createElement("span"); yr.textContent = x.year;
+    cp.append(nm, yr);
+    if (extra) { const ex = document.createElement("span"); ex.textContent = extra; cp.appendChild(ex); }
+    fg.appendChild(cp);
+    return fg;
+  }
+  function renderFavs(all) {
+    const byUri = new Map(), byK = new Map();
+    all.forEach((x) => { if (x.uri) byUri.set(x.uri, x); byK.set(x.name + "|" + x.year, x); });
+    const items = favorites.map((u) => byUri.get(u)).filter(Boolean);
+    // Dernier film liké : date de coup de cœur la plus récente (à égalité, le plus bas dans likes.csv)
+    let last = null;
+    likeDates.forEach((e) => { const x = byK.get(e.k); if (x && (!last || e.d >= last.d)) last = { x: x, d: e.d }; });
+    const list = $("favList"), ll = $("lastLikeList");
+    list.textContent = ""; ll.textContent = "";
+    $("favTop").hidden = !items.length;
+    $("favLike").hidden = !last;
+    $("favs").hidden = !items.length && !last;
+    if ($("favs").hidden) return;
+    $("profilePanel").hidden = false;
+    items.forEach((x) => list.appendChild(posterFig(x)));
+    if (last) ll.appendChild(posterFig(last.x, isIso(last.d) ? "liké le " + longDate(fromIso(last.d)) : ""));
   }
 
   const DAYS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
@@ -687,6 +781,7 @@
     const now = new Date(), cur = now.getFullYear();
     const raw = diaryRows.filter((r) => isIso(r.date));
     const panel = $("yearPanel");
+    $("yearMiss").hidden = true;
     if (!raw.length) { panel.hidden = true; return; }
     panel.hidden = false;
 
@@ -705,15 +800,17 @@
     if (!sessions.length) {
       $("yearSum").textContent = when + " : aucune séance dans ton journal.";
       rank("weekdays", [], 0, "Rien à afficher pour cette année.");
+      $("yearExtra").hidden = true;
       $("yearNote").textContent = "";
       return;
     }
 
-    let min = 0, unknown = 0;
+    let min = 0;
+    const unknownList = [];
     const per = [0, 0, 0, 0, 0, 0, 0], items = [[], [], [], [], [], [], []];
     sessions.forEach((x) => {
       const it = byKey.get(x.name + "|" + x.year);
-      if (it && it.rt) min += it.rt; else unknown++;
+      if (it && it.rt) min += it.rt; else unknownList.push({ x: x, found: !!it });
       const d = fromIso(x.date).getDay();
       per[d]++;
       if (it) items[d].push(it);
@@ -732,7 +829,88 @@
       value: "ratio " + nf2(r.ratio) + " · " + r.n + (r.n > 1 ? " films" : " film"),
       frac: r.ratio / rmax
     })));
-    $("yearNote").textContent =(unknown ? " " + unknown + " séance(s) sans durée connue ne comptent pas dans les heures." : "");
+    $("yearNote").textContent = "";
+    $("yearExtra").hidden = false;
+    renderYearExtras(sessions, byKey, Y, endIso, Y === cur);
+    // Séances sans durée : listées dans un menu déroulant, uniquement s'il y en a
+    const ym = $("yearMiss"), yl = $("yearMissList"); yl.textContent = "";
+    ym.hidden = !unknownList.length;
+    if (unknownList.length) {
+      $("yearMissN").textContent = unknownList.length + (unknownList.length > 1 ? " séances sans durée, non comptées dans les heures" : " séance sans durée, non comptée dans les heures");
+      unknownList.forEach((u) => {
+        const li = document.createElement("li");
+        li.textContent = u.x.name + " (" + u.x.year + ") · vu le " + longDate(fromIso(u.x.date)) + (u.found ? " · durée absente sur TMDB" : " · film non trouvé sur TMDB");
+        yl.appendChild(li);
+      });
+    }
+  }
+
+  const MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+  const MONTHS_LONG = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+  const dayNum = (iso) => { const p = iso.split("-").map(Number); return Math.round(Date.UTC(p[0], p[1] - 1, p[2]) / 864e5); };
+  const fmtDay = (n) => new Date(n * 864e5).toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: "UTC" });
+  const fmtDayY = (n) => new Date(n * 864e5).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+  const span = (a, b) => (a === b ? "le " + fmtDayY(a) : "du " + fmtDay(a) + " au " + fmtDayY(b));
+
+  // Évolution mois par mois (nombre de films et note moyenne) et séries de visionnage, d'après la colonne « Watched Date » du journal
+  function renderYearExtras(sessions, byKey, Y, endIso, isCur) {
+    const cnt = Array(12).fill(0), sum = Array(12).fill(0), nr = Array(12).fill(0);
+    sessions.forEach((x) => {
+      const m = +x.date.slice(5, 7) - 1, it = byKey.get(x.name + "|" + x.year);
+      cnt[m]++;
+      if (it && it.r != null) { sum[m] += it.r; nr[m]++; }
+    });
+    const avgs = sum.map((s, m) => (nr[m] ? s / nr[m] : null));
+    let best = -1;
+    avgs.forEach((a, m) => { if (a != null && (best < 0 || a > avgs[best] || (a === avgs[best] && nr[m] > nr[best]))) best = m; });
+    drawCombo({
+      box: "monthChart", labels: MONTHS, counts: cnt, avgs: avgs, best: best, xTitle: "Mois de " + Y,
+      aria: "Nombre de films et note moyenne par mois en " + Y,
+      tipBar: (m) => MONTHS_LONG[m] + " : " + plural(cnt[m], "film"),
+      tipDot: (m) => MONTHS_LONG[m] + " : " + nf1(avgs[m]) + " ★ de moyenne sur " + plural(nr[m], "film") + " noté"
+    });
+    const order = avgs.map((a, m) => m).filter((m) => avgs[m] != null).sort((a, b) => avgs[b] - avgs[a] || nr[b] - nr[a]).slice(0, 3);
+    $("monthNote").textContent = "Barres : films vus dans le mois (axe de droite). Courbe : note moyenne du mois (axe de gauche)."
+      + (order.length ? " Mois les mieux notés : " + order.map((m) => MONTHS_LONG[m] + " (" + nf1(avgs[m]) + " ★)").join(", ") + "." : " Pas de notes pour cette année.");
+
+    // Séries de visionnage
+    const perDay = new Map();
+    sessions.forEach((x) => { const d = dayNum(x.date); perDay.set(d, (perDay.get(d) || 0) + 1); });
+    const days = Array.from(perDay.keys()).sort((a, b) => a - b);
+    let sBest = [1, days[0], days[0]], run = 1, runStart = days[0], gBest = null;
+    for (let i = 1; i < days.length; i++) {
+      if (days[i] === days[i - 1] + 1) { run++; } else {
+        const gap = days[i] - days[i - 1] - 1;
+        if (!gBest || gap > gBest[0]) gBest = [gap, days[i - 1] + 1, days[i] - 1];
+        run = 1; runStart = days[i];
+      }
+      if (run > sBest[0]) sBest = [run, runStart, days[i]];
+    }
+    let dBest = days[0];
+    days.forEach((d) => { if (perDay.get(d) > perDay.get(dBest)) dBest = d; });
+    const perWeek = new Map();
+    days.forEach((d) => { const w = d - ((d + 3) % 7); perWeek.set(w, (perWeek.get(w) || 0) + perDay.get(d)); });
+    let wBest = null;
+    perWeek.forEach((c, w) => { if (!wBest || c > wBest[0] || (c === wBest[0] && w < wBest[1])) wBest = [c, w]; });
+    const wEnd = wBest[1] + 6, sd = new Date(wBest[1] * 864e5), ed = new Date(wEnd * 864e5);
+    const weekTxt = "du " + (sd.getUTCMonth() === ed.getUTCMonth() ? sd.getUTCDate() : fmtDay(wBest[1])) + " au " + fmtDayY(wEnd);
+    let mBest = 0; cnt.forEach((c, m) => { if (c > cnt[mBest]) mBest = m; });
+    const live = isCur && sBest[2] === dayNum(endIso);
+    const stats = [
+      ["Plus longue série", plural(sBest[0], "jour") + " d'affilée", span(sBest[1], sBest[2]) + (live ? " (en cours)" : "")],
+      ["Plus long creux", gBest ? plural(gBest[0], "jour") + " sans film" : "-", gBest ? span(gBest[1], gBest[2]) : "Aucun jour sans film entre deux séances."],
+      ["Jour le plus chargé", plural(perDay.get(dBest), "film"), "le " + fmtDayY(dBest)],
+      ["Semaine la plus chargée", plural(wBest[0], "film"), weekTxt + " (du lundi au dimanche)"],
+      ["Mois le plus chargé", plural(cnt[mBest], "film"), MONTHS_LONG[mBest] + " " + Y]
+    ];
+    const box = $("streaks"); box.textContent = "";
+    stats.forEach((t) => {
+      const d = document.createElement("div"); d.className = "stat";
+      const a = document.createElement("span"); a.textContent = t[0];
+      const b = document.createElement("b"); b.textContent = t[1];
+      const c = document.createElement("em"); c.textContent = t[2];
+      d.append(a, b, c); box.appendChild(d);
+    });
   }
   $("yearSel").addEventListener("change", () => { yearChoice = +$("yearSel").value; if (lastByKey) renderYear(lastByKey); });
 
@@ -821,10 +999,121 @@
     const box = $("hist"); box.textContent = ""; box.appendChild(svg);
   }
 
+
+  // Graphique à deux axes : barres = nombre de films (axe de droite), courbe lissée = note moyenne (axe de gauche)
+  // o : { box, labels, counts, avgs (null si pas de note), best (indice de la meilleure note), tipBar(i), tipDot(i), xTitle, aria }
+  function drawCombo(o) {
+    const NS = "http://www.w3.org/2000/svg";
+    const el = (name, attrs, text) => {
+      const e = document.createElementNS(NS, name);
+      Object.keys(attrs || {}).forEach((k) => e.setAttribute(k, attrs[k]));
+      if (text != null) e.textContent = text;
+      return e;
+    };
+    const n = o.labels.length, W = 640, H = 330, L = 40, R = 40, T = 34, B = 56, y0 = H - B;
+    const step = (W - L - R) / n, bw = Math.min(step * 0.62, 52);
+    const cx = (i) => L + step * i + step / 2;
+    const cmax = Math.max.apply(null, o.counts.concat([1]));
+    const ts = Math.max(1, Math.ceil(cmax / 5)), top = ts * 5;
+    const yC = (c) => y0 - (c / top) * (y0 - T), yA = (a) => y0 - (a / 5) * (y0 - T);
+    const svg = el("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": o.aria });
+
+    for (let k = 0; k <= 5; k++) {
+      const y = y0 - (k / 5) * (y0 - T);
+      if (k > 0) svg.appendChild(el("line", { class: "hgrid", x1: L, x2: W - R, y1: y, y2: y }));
+      svg.appendChild(el("text", { class: "caxl", x: L - 8, y: y + 4, "text-anchor": "end" }, String(k)));
+      svg.appendChild(el("text", { class: "caxl", x: W - R + 8, y: y + 4, "text-anchor": "start" }, String(k * ts)));
+    }
+    svg.appendChild(el("text", { class: "hax", x: L - 8, y: 14, "text-anchor": "start" }, "Note ★"));
+    svg.appendChild(el("text", { class: "hax", x: W - R + 8, y: 14, "text-anchor": "end" }, "Films"));
+
+    const r = 5, peak = cmax;
+    o.counts.forEach((c, i) => {
+      if (!c) return;
+      const x = cx(i) - bw / 2, y = yC(c), h = y0 - y;
+      const d = h > r
+        ? "M" + x + "," + y0 + " V" + (y + r) + " Q" + x + "," + y + " " + (x + r) + "," + y + " H" + (x + bw - r) + " Q" + (x + bw) + "," + y + " " + (x + bw) + "," + (y + r) + " V" + y0 + " Z"
+        : "M" + x + "," + y0 + " V" + (y0 - Math.max(h, 1)) + " H" + (x + bw) + " V" + y0 + " Z";
+      const bar = el("path", { class: "cbar" + (c === peak ? " peak" : ""), d: d });
+      bar.appendChild(el("title", {}, o.tipBar(i)));
+      svg.appendChild(bar);
+    });
+
+    // Courbe lissée, par tronçons (un trou dans les données coupe la courbe)
+    const runs = []; let cur = [];
+    o.avgs.forEach((a, i) => { if (a == null) { if (cur.length) runs.push(cur); cur = []; } else cur.push([cx(i), yA(a), i]); });
+    if (cur.length) runs.push(cur);
+    runs.forEach((pts) => { if (pts.length > 1) svg.appendChild(el("path", { class: "hcurve", d: smoothPath(pts) })); });
+    runs.forEach((pts) => pts.forEach((p) => {
+      const best = p[2] === o.best;
+      const dot = el("circle", { class: best ? "cbest" : "hdot", cx: p[0].toFixed(1), cy: p[1].toFixed(1), r: best ? 6 : 3.5 });
+      dot.appendChild(el("title", {}, o.tipDot(p[2])));
+      svg.appendChild(dot);
+      svg.appendChild(el("text", { class: "cval", x: p[0].toFixed(1), y: (p[1] - 11).toFixed(1), "text-anchor": "middle" }, nf1(o.avgs[p[2]])));
+    }));
+
+    svg.appendChild(el("line", { class: "base", x1: L, x2: W - R, y1: y0, y2: y0 }));
+    o.labels.forEach((t, i) => svg.appendChild(el("text", { class: "hlab", x: cx(i), y: y0 + 20, "text-anchor": "middle" }, t)));
+    if (o.xTitle) svg.appendChild(el("text", { class: "hax", x: W / 2, y: H - 8, "text-anchor": "middle" }, o.xTitle));
+    const box = $(o.box); box.textContent = ""; box.appendChild(svg);
+  }
+  const plural = (n, w) => nf.format(n) + " " + w + (n > 1 ? "s" : "");
+
+  // Catégorie d'un rôle selon sa place au générique, ramenée à la taille du casting
+  // (0 principal, 1 secondaire, 2 petite apparition). Seuils faciles à ajuster ci-dessous.
+  const TIERS = ["rôle principal", "rôle secondaire", "petite apparition"];
+  const TIER_CFG = { mainPct: 0.15, mainMin: 5, mainMax: 12, secPct: 0.4, secMin: 10, secMax: 25 };
+  function tiersOf(x) {
+    if (x._t) return x._t;
+    const ids = (x.m || []).concat(x.f || [], x.u || [], x.o || []), size = ids.length, c = TIER_CFG;
+    const main = Math.max(c.mainMin, Math.min(c.mainMax, Math.ceil(size * c.mainPct)));
+    const sec = Math.min(c.secMax, Math.max(c.secMin, Math.ceil(size * c.secPct)));
+    const t = new Map();
+    ids.forEach((id, i) => { if (!t.has(id)) t.set(id, i + 1 <= main ? 0 : i + 1 <= sec ? 1 : 2); });
+    x._t = t; return t;
+  }
+  let lastRated = null;
+  function renderBestActors() {
+    if (!lastRated) return;
+    const min = +$("actMin").value, sel = [0, 1, 2].map((i) => $("actT" + i).checked);
+    $("actMinV").textContent = min;
+    if (!sel.some(Boolean)) { rank("bestActors", [], 0, "Coche au moins une catégorie de rôle."); return; }
+    const gs = group(lastRated, (x) => Array.from(tiersOf(x)).filter((e) => sel[e[1]]).map((e) => e[0]))
+      .filter((g) => g.nr >= min).map((g) => Object.assign(g, { a: g.sum / g.nr }))
+      .sort((a, b) => b.a - a.a || b.nr - a.nr || nameOf(a.k).localeCompare(nameOf(b.k))).slice(0, 10);
+    rank("bestActors", gs.map((g) => ({
+      label: nameOf(g.k), person: g.k, items: g.items, roleOf: (m) => TIERS[tiersOf(m).get(g.k)],
+      value: nf1(g.a) + " ★ · " + g.nr + (g.nr > 1 ? " films" : " film"), frac: g.a / 5
+    })), 0, "Aucun acteur ni aucune actrice avec au moins " + min + (min > 1 ? " films notés" : " film noté") + " dans ces catégories.");
+  }
+  ["actMin", "actT0", "actT1", "actT2"].forEach((id) => $(id).addEventListener("input", renderBestActors));
+
+  // Durée des films : moins d'1 h, puis par tranches de 30 min, jusqu'à plus de 3 h
+  const DUR = [
+    { l: "< 1 h", lo: 0, hi: 60 }, { l: "1 h – 1 h 30", lo: 60, hi: 90 }, { l: "1 h 30 – 2 h", lo: 90, hi: 120 },
+    { l: "2 h – 2 h 30", lo: 120, hi: 150 }, { l: "2 h 30 – 3 h", lo: 150, hi: 180 }, { l: "> 3 h", lo: 180, hi: 1e9 }
+  ];
+  function renderDuration(all) {
+    const timed = all.filter((x) => x.rt > 0), box = $("durBox");
+    const gs = DUR.map((b) => { const it = timed.filter((x) => x.rt >= b.lo && x.rt < b.hi), rt = it.filter((x) => x.r != null); return { n: it.length, nr: rt.length, a: rt.length ? mean(rt.map((x) => x.r)) : null }; });
+    box.hidden = timed.length < 10;
+    if (box.hidden) return;
+    let best = -1;
+    gs.forEach((g, i) => { if (g.a != null && (best < 0 || g.a > gs[best].a)) best = i; });
+    drawCombo({
+      box: "durChart", labels: DUR.map((b) => b.l), counts: gs.map((g) => g.n), avgs: gs.map((g) => g.a), best: best,
+      xTitle: "Durée du film", aria: "Nombre de films et note moyenne selon la durée du film",
+      tipBar: (i) => DUR[i].l + " : " + plural(gs[i].n, "film"),
+      tipDot: (i) => DUR[i].l + " : " + nf1(gs[i].a) + " ★ de moyenne sur " + plural(gs[i].nr, "film") + " noté"
+    });
+    $("durNote").textContent = "Barres : nombre de films (axe de droite). Courbe : ta note moyenne (axe de gauche)."
+      + (best >= 0 ? " Tranche la mieux notée : " + DUR[best].l + " (" + nf1(gs[best].a) + " ★)." : "");
+  }
+
   function renderRatings(all, genres) {
     const rated = all.filter((x) => x.r != null);
     const has = rated.length >= 10;
-    ["profilePanel", "histPanel", "bestGenresPanel", "bestDirsPanel", "decAvgPanel", "morePanel", "lessPanel", "fivePanel"].forEach((id) => { $(id).hidden = !has; });
+    ["profilePanel", "histPanel", "bestGenresPanel", "bestDirsPanel", "bestActorsPanel", "decAvgPanel", "morePanel", "lessPanel", "fivePanel"].forEach((id) => { $(id).hidden = !has; });
     if (!has) return;
 
     const rs = rated.map((x) => x.r);
@@ -842,6 +1131,8 @@
     rank("bestGenres", gAvg.map((g) => ({ label: g.k, items: g.items, value: nf1(g.a) + " ★ · " + g.nr + " films", frac: g.a / 5 })), 0, "Pas encore 8 films notés dans un même genre.");
     const dAvg = group(rated, (x) => x.d).filter((g) => g.nr >= 3).map((g) => Object.assign(g, { a: g.sum / g.nr })).sort((a, b) => b.a - a.a || b.nr - a.nr).slice(0, 10);
     rank("bestDirs", dAvg.map((g) => ({ label: nameOf(g.k), person: g.k, items: g.items, value: nf1(g.a) + " ★ · " + g.nr + " films", frac: g.a / 5 })), 0, "Pas encore 3 films notés du même réalisateur.");
+
+    lastRated = rated; renderBestActors();
 
     // Note moyenne par décennie
     const decAvg = group(rated, (x) => [Math.floor(x.year / 10) * 10]).sort((a, b) => a.k - b.k).map((g) => Object.assign(g, { a: g.sum / g.nr }));
@@ -904,6 +1195,7 @@
       add(r > 0.15 ? "Fan de longs films" : r < -0.15 ? "Allergique aux longueurs" : "La durée ne compte pas",
         "Lien entre durée et note : " + nf1(r) + (r > 0.15 ? ". Plus c'est long, plus tu aimes." : r < -0.15 ? ". Plus c'est long, moins tu aimes." : ", presque aucun effet."));
     }
+    renderDuration(all);
     const pl = $("profileList"); pl.textContent = "";
     out.forEach((o) => {
       const li = document.createElement("li");
