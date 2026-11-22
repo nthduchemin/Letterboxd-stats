@@ -9,11 +9,18 @@
   let ratings = null;    // Map "nom|année" -> note, ou null sans ratings.csv
   let likes = null;      // Set "nom|année", ou null
   let likeDates = [];   // {k: "nom|année", d: date du coup de cœur}, d'après likes.csv
-  let diaryRows = [], username = "", favorites = [];   // journal, pseudo Letterboxd, liens du top 4
+  let diaryRows = [], watchlist = [], username = "", favorites = [];   // journal, pseudo Letterboxd, liens du top 4
   let running = false, cancelled = false;
 
   const CACHE_KEY = "lb-film-cache-v5", PEOPLE_KEY = "lb-people-v5";   // v5 : casting complet, avec identifiants
   let cache = {}, people = {};                                          // people : identifiant TMDB -> nom
+  // Les données TMDB gardées dans ce navigateur sont purgées au bout de 6 mois, puis recalculées à la demande
+  const STAMP_KEY = "lb-cache-stamp", MAX_AGE = 180 * 864e5;
+  try {
+    const st = +localStorage.getItem(STAMP_KEY) || 0;
+    if (st && Date.now() - st > MAX_AGE) ["lb-film-cache-v5", "lb-people-v5", "lb-person-v1", "lb-coll-v1", STAMP_KEY].forEach((k) => localStorage.removeItem(k));
+    if (!localStorage.getItem(STAMP_KEY)) localStorage.setItem(STAMP_KEY, String(Date.now()));
+  } catch (e) {}
   try { cache = JSON.parse(localStorage.getItem(CACHE_KEY) || "{}"); } catch (e) {}
   try { people = JSON.parse(localStorage.getItem(PEOPLE_KEY) || "{}"); } catch (e) {}
   const saveCache = () => {
@@ -61,9 +68,12 @@
   function load(texts, name) {
     films = parseCSV(texts.watched).filter((r) => r.Name).map((r) => ({ name: r.Name, year: r.Year, uri: (r["Letterboxd URI"] || "").trim() }));
     diaryRows = texts.diary
-      ? parseCSV(texts.diary).filter((r) => r.Name).map((r) => ({ name: r.Name, year: r.Year, date: r["Watched Date"] || "", rewatch: r.Rewatch === "Yes" }))
+      ? parseCSV(texts.diary).filter((r) => r.Name).map((r) => ({ name: r.Name, year: r.Year, date: r["Watched Date"] || "", rewatch: r.Rewatch === "Yes", tags: (r.Tags || "").split(",").map((t) => t.trim()).filter(Boolean) }))
       : [];
     rewatches = diaryRows.filter((r) => r.rewatch);
+    watchlist = texts.watchlist
+      ? parseCSV(texts.watchlist).filter((r) => r.Name).map((r) => ({ name: r.Name, year: r.Year, date: r.Date || "", uri: (r["Letterboxd URI"] || "").trim() }))
+      : [];
     username = ""; favorites = [];
     if (texts.profile) {
       const p = parseCSV(texts.profile)[0];
@@ -99,8 +109,8 @@
       JSZip.loadAsync(file).then((zip) => {
         const get = (p) => { const f = zip.file(p); return f ? f.async("string") : Promise.resolve(""); };
         if (!zip.file("watched.csv")) { showErr("watched.csv est introuvable dans ce ZIP."); return; }
-        return Promise.all([get("watched.csv"), get("diary.csv"), get("ratings.csv"), get("likes/films.csv"), get("profile.csv")])
-          .then((t) => load({ watched: t[0], diary: t[1], ratings: t[2], likes: t[3], profile: t[4] }, file.name));
+        return Promise.all([get("watched.csv"), get("diary.csv"), get("ratings.csv"), get("likes/films.csv"), get("profile.csv"), get("watchlist.csv")])
+          .then((t) => load({ watched: t[0], diary: t[1], ratings: t[2], likes: t[3], profile: t[4], watchlist: t[5] }, file.name));
       }).catch(() => showErr("Impossible de lire ce ZIP."));
     } else {
       const rd = new FileReader();
@@ -206,7 +216,9 @@
 
   $("go").addEventListener("click", () => {
     const key = $("key").value.trim();
-    const queue = films.slice(); const total = films.length;
+    const have = new Set(films.map(keyOf)), seenWl = new Set();
+    const queue = films.concat(watchlist.filter((f) => { const k = keyOf(f); if (have.has(k) || seenWl.has(k)) return false; seenWl.add(k); return true; }));
+    const total = queue.length;
     let done = 0, fatal = false;
     running = true; cancelled = false; update();
     $("go").hidden = true; $("stop").hidden = false; $("progress").hidden = false;
@@ -698,6 +710,8 @@
     if (reRows.length) renderReTop(reRows, byKey);
 
     renderYear(byKey);
+    renderWatchlist();
+    renderTags(byKey);
 
     // Non trouvés
     const ul = $("missList"); ul.textContent = "";
@@ -740,7 +754,7 @@
     const ids = Array.from(by.keys()).filter((id) => by.get(id).length >= 2);
     panel.hidden = !ids.length;
     if (!ids.length) return;
-    rank("coll", [], 0, "Chargement des sagas…");
+    rank("coll", [], 0, "Chargement des sagas…"); $("coll2").textContent = "";
     $("collNote").textContent = "";
     const todo = ids.filter((id) => !collCache[id]), key = apiKey();
     let next = 0;
@@ -763,10 +777,12 @@
         .slice(0, 30);
       const nDone = rows.filter((r) => r.done).length;
       $("collNote").textContent = rows.length ? rows.length + " sagas affichées, dont " + nDone + (nDone > 1 ? " complètes." : " complète.") : "";
-      rank("coll", rows.map((r) => ({
+      const cr = rows.map((r) => ({
         label: r.label, items: r.items, full: true, missing: r.missing,
         value: r.seen + " / " + r.total + " films" + (r.done ? " · complète ✓" : ""), frac: r.seen / r.total
-      })), 0, "Impossible de charger les sagas pour le moment.");
+      }));
+      rank("coll", cr.slice(0, 15), 0, "Impossible de charger les sagas pour le moment.");   // les 15 premières à gauche
+      if (cr.length > 15) rank("coll2", cr.slice(15)); else $("coll2").textContent = "";     // les 15 suivantes à droite
     });
   }
 
@@ -838,8 +854,8 @@
     const sessions = raw.filter((x) => x.date.startsWith(Y + "-") && x.date <= endIso);
     if (!sessions.length) {
       $("yearSum").textContent = when + " : aucune séance dans ton journal.";
-      rank("weekdays", [], 0, "Rien à afficher pour cette année.");
-      $("yearExtra").hidden = true;
+      $("weekdays").textContent = "Rien à afficher pour cette année.";
+      $("yearExtra").hidden = true; $("dayBox").textContent = "";
       $("yearNote").textContent = "";
       return;
     }
@@ -857,17 +873,14 @@
     // Nombre de chaque jour de la semaine sur la période
     const occ = [0, 0, 0, 0, 0, 0, 0];
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) occ[d.getDay()]++;
-    const rows = DAYS.map((name, d) => ({ name: name, n: per[d], ratio: per[d] / Math.max(1, occ[d]), items: items[d] }))
-      .sort((a, b) => b.ratio - a.ratio || b.n - a.n);
-    const top = rows[0], rmax = top.ratio || 1;
-    const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+    // Jours distincts avec au moins un film, par jour de la semaine
+    const on = [0, 0, 0, 0, 0, 0, 0];
+    Array.from(new Set(sessions.map((x) => x.date))).forEach((iso) => { on[fromIso(iso).getDay()]++; });
+    const rows = DAYS.map((name, d) => ({ d: d, name: name, n: per[d], pct: Math.min(1, on[d] / Math.max(1, occ[d])), items: items[d] }));
+    const top = rows.slice().sort((a, b) => b.pct - a.pct || b.n - a.n)[0];
     $("yearSum").textContent = when + " : " + sessions.length + (sessions.length > 1 ? " films vus" : " film vu")
       + " (revisionnages compris), soit " + fmtDur(min) + " de cinéma. Ton jour favori : le " + top.name + ", avec " + top.n + (top.n > 1 ? " films" : " film") + ".";
-    rank("weekdays", rows.map((r) => ({
-      label: cap(r.name), items: r.items,
-      value: "ratio " + nf2(r.ratio) + " · " + r.n + (r.n > 1 ? " films" : " film"),
-      frac: r.ratio / rmax
-    })));
+    renderCalendar(sessions, byKey, Y, end, rows, top.d);
     $("yearNote").textContent = "";
     $("yearExtra").hidden = false;
     renderYearExtras(sessions, byKey, Y, endIso, Y === cur);
@@ -951,6 +964,119 @@
       d.append(a, b, c); box.appendChild(d);
     });
   }
+  /* ---------- Calendrier de l'année : une case par jour, colorée selon le nombre de films (colonne « Watched Date ») ---------- */
+  const WD_ORDER = [1, 2, 3, 4, 5, 6, 0];
+  function renderCalendar(sessions, byKey, Y, end, rows, topD) {
+    const box = $("weekdays"); box.textContent = ""; $("dayBox").textContent = "";
+    const mk = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+    const byDate = new Map();
+    sessions.forEach((x) => { if (!byDate.has(x.date)) byDate.set(x.date, []); byDate.get(x.date).push(x); });
+    const jan1 = new Date(Y, 0, 1), off = (jan1.getDay() + 6) % 7;
+    const nDays = Math.round((new Date(Y, 11, 31) - jan1) / 864e5) + 1, weeks = Math.ceil((off + nDays) / 7);
+    const grid = mk("div", "calgrid"); grid.style.gridTemplateColumns = "auto repeat(" + weeks + ", minmax(11px, 1fr)) auto";
+    const place = (e, r, c, span) => { e.style.gridRow = r; e.style.gridColumn = span ? c + " / span " + span : c; grid.appendChild(e); return e; };
+    for (let m = 0; m < 12; m++) {
+      const w = Math.floor((off + Math.round((new Date(Y, m, 1) - jan1) / 864e5)) / 7);
+      place(mk("span", "calmonth", MONTHS[m]), 1, w + 2, 3);
+    }
+    WD_ORDER.forEach((d, r) => {
+      const row = rows[d];
+      place(mk("span", "callab", DAYS[d].charAt(0).toUpperCase() + DAYS[d].slice(1)), r + 2, 1);
+      place(mk("span", "calval" + (d === topD ? " top" : ""), Math.round(row.pct * 100) + " % des " + row.name + "s · " + row.n + (row.n > 1 ? " films" : " film")), r + 2, weeks + 2);
+    });
+    let selected = null;
+    for (let i = 0; i < nDays; i++) {
+      const dt = new Date(Y, 0, 1 + i), iso = isoOf(dt), list = byDate.get(iso) || [], n = list.length;
+      const cell = mk("span", "day" + (n ? " on" : "") + (dt > end ? " fut" : ""));
+      const when = DAYS[dt.getDay()] + " " + longDate(dt);
+      cell.title = when + " : " + (n ? plural(n, "film") : "aucun film");
+      if (n) {
+        cell.tabIndex = 0; cell.setAttribute("role", "button"); cell.setAttribute("aria-label", cell.title);
+        const show = () => {
+          if (selected) selected.classList.remove("sel");
+          selected = cell; cell.classList.add("sel");
+          const out = $("dayBox"); out.textContent = "";
+          out.appendChild(mk("h3", "", when.charAt(0).toUpperCase() + when.slice(1) + " : " + plural(n, "film")));
+          const found = list.map((x) => byKey.get(x.name + "|" + x.year)).filter(Boolean);
+          if (found.length) out.appendChild(filmsList(found, { limit: 0 }));
+          list.filter((x) => !byKey.get(x.name + "|" + x.year)).forEach((x) => out.appendChild(mk("p", "hint", x.name + " (" + x.year + ") : film non trouvé sur TMDB")));
+        };
+        cell.addEventListener("click", show);
+        cell.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); show(); } });
+      }
+      place(cell, (dt.getDay() + 6) % 7 + 2, Math.floor((off + i) / 7) + 2);
+    }
+    const sc = mk("div", "calscroll"); sc.appendChild(grid); box.appendChild(sc);
+    box.appendChild(mk("p", "hint", ""));
+  }
+
+  /* ---------- Watchlist : heures à rattraper et films qui y traînent depuis le plus longtemps ---------- */
+  function sinceTxt(iso) {
+    if (!isIso(iso)) return "date inconnue";
+    const a = fromIso(iso), b = new Date();
+    let m = (b.getFullYear() - a.getFullYear()) * 12 + b.getMonth() - a.getMonth() - (b.getDate() < a.getDate() ? 1 : 0);
+    if (m < 1) { const d = Math.max(0, Math.round((b - a) / 864e5)); return "depuis " + plural(d, "jour"); }
+    const y = Math.floor(m / 12); m %= 12;
+    return "depuis " + (y ? y + (y > 1 ? " ans" : " an") + (m ? " " + m + " mois" : "") : m + " mois");
+  }
+  function renderWatchlist() {
+    const panel = $("wlPanel");
+    const have = new Set(films.map(keyOf)), seen = new Set(), wl = [];
+    watchlist.forEach((f) => {
+      const k = keyOf(f);
+      if (have.has(k) || seen.has(k)) return;   // déjà vu : plus à rattraper
+      seen.add(k);
+      const c = cache[k];
+      wl.push(c && c.ok ? Object.assign({ name: f.name, year: parseInt(f.year, 10), uri: f.uri, r: null, added: f.date }, c) : { name: f.name, year: parseInt(f.year, 10), added: f.date, miss: 1 });
+    });
+    panel.hidden = !wl.length;
+    if (!wl.length) { $("wlMiss").hidden = true; return; }
+    const min = wl.reduce((s, x) => s + (x.rt || 0), 0), unknownList = wl.filter((x) => !x.rt);
+    $("wlH").textContent = nf.format(Math.round(min / 60));
+    $("wlSub").textContent = fmtDur(min) + " pour " + plural(wl.length, "film") + ", soit " + nf1(min / 1440) + " jours sans dormir"
+      + ".";
+    // Films sans durée : listés dans un menu déroulant, uniquement s'il y en a
+    const wm = $("wlMiss"), wlist = $("wlMissList"); wlist.textContent = "";
+    wm.hidden = !unknownList.length;
+    if (unknownList.length) {
+      $("wlMissN").textContent = unknownList.length + (unknownList.length > 1 ? " films sans durée, non comptés dans les heures" : " film sans durée, non compté dans les heures");
+      unknownList.forEach((x) => {
+        const li = document.createElement("li");
+        li.textContent = x.name + " (" + x.year + ")" + (x.miss ? " · film non trouvé sur TMDB" : " · durée absente sur TMDB");
+        wlist.appendChild(li);
+      });
+    }
+    const dated = wl.filter((x) => isIso(x.added)).sort((a, b) => a.added.localeCompare(b.added) || a.name.localeCompare(b.name)).slice(0, 5);
+    const age = (x) => Math.max(1, (new Date() - fromIso(x.added)) / 864e5), mx = dated.length ? age(dated[0]) : 1;
+    rank("wlOld", dated.map((x) => ({
+      film: x.miss ? null : x, label: x.name + " (" + x.year + ")",
+      value: sinceTxt(x.added) + " · ajouté le " + longDate(fromIso(x.added)), frac: age(x) / mx
+    })), 0, "Aucune date d'ajout dans ta watchlist.");
+  }
+
+  /* ---------- Tags du journal : les 5 tags les plus utilisés ---------- */
+  function renderTags(byKey) {
+    const panel = $("tagPanel"), tags = new Map();
+    diaryRows.forEach((r) => (r.tags || []).forEach((t) => {
+      const k = t.toLowerCase(), it = byKey.get(r.name + "|" + r.year);
+      if (!tags.has(k)) tags.set(k, { label: t, films: new Map(), sessions: 0 });
+      const g = tags.get(k); g.sessions++;
+      if (it) g.films.set(r.name + "|" + r.year, it);
+    }));
+    const rows = Array.from(tags.values()).map((g) => {
+      const items = Array.from(g.films.values()), rated = items.filter((x) => x.r != null);
+      return { label: g.label, items: items, n: items.length, sessions: g.sessions, min: items.reduce((s, x) => s + (x.rt || 0), 0), avg: rated.length ? mean(rated.map((x) => x.r)) : null };
+    }).filter((g) => g.n).sort((a, b) => b.n - a.n || b.sessions - a.sessions || a.label.localeCompare(b.label)).slice(0, 5);
+    panel.hidden = !rows.length;
+    if (!rows.length) return;
+    const max = rows[0].n;
+    rank("tags", rows.map((g) => ({
+      label: g.label, items: g.items,
+      value: plural(g.n, "film") + " · " + (g.avg != null ? nf1(g.avg) + " ★" : "non noté") + " · " + Math.round(g.min / 60) + " h",
+      frac: g.n / max
+    })));
+  }
+
   $("yearSel").addEventListener("change", () => { yearChoice = +$("yearSel").value; if (lastByKey) renderYear(lastByKey); });
 
   // Courbe lissée passant par des points (interpolation monotone : ne descend jamais sous la base)

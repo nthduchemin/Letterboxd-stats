@@ -123,8 +123,9 @@
         </label>
       </div>
       <p class="lead small" id="yearSum"></p>
-      <h3>Ton rythme selon le jour de la semaine</h3>
-      <ol class="rank" id="weekdays"></ol>
+      <h3>Calendrier de l'année et rythme selon le jour de la semaine</h3>
+      <div id="weekdays"></div>
+      <div id="dayBox" class="daybox"></div>
       <div id="yearExtra">
         <h3>Ton année mois par mois</h3>
         <div class="hist" id="monthChart" role="img" aria-label="Nombre de films et note moyenne par mois"></div>
@@ -180,7 +181,22 @@
         <p class="hint">Les catégories suivent l'ordre d'apparition au générique, en tenant compte de la taille du casting. C'est une estimation : ce n'est pas toujours précis au rôle près, et un personnage marquant peut se retrouver classé en rôle secondaire.</p></section>
       <section class="panel" id="morePanel" hidden><h2>Top 10 : plus aimés que le grand public</h2><ol class="rank" id="more"></ol><p class="hint">Écart entre ta note et la note moyenne de TMDB (ramenée sur 5), pour les films avec au moins 200 votes.</p></section>
       <section class="panel" id="lessPanel" hidden><h2>Top 10 : moins aimés que le grand public</h2><ol class="rank" id="less"></ol></section>
-      <section class="panel wide" id="collPanel" hidden><h2>Sagas et franchises</h2><ol class="rank" id="coll"></ol><p class="hint" id="collNote"></p><p class="hint">Collections TMDB dont tu as vu au moins 2 films, classées par nombre de films vus (30 au maximum). Seuls les films déjà sortis comptent.</p></section>
+      <section class="panel" id="wlPanel" hidden>
+        <h2>Ta watchlist</h2>
+        <p class="lead small"><b id="wlH">0</b> h à rattraper</p>
+        <p class="hint" id="wlSub"></p>
+        <h3>Les 5 films qui y traînent depuis le plus longtemps</h3>
+        <ol class="rank" id="wlOld"></ol>
+        <details id="wlMiss" hidden>
+          <summary><span id="wlMissN"></span></summary>
+          <ul class="misslist" id="wlMissList"></ul>
+        </details>
+      </section>
+      <section class="panel" id="tagPanel" hidden>
+        <h2>Tes 5 tags les plus utilisés</h2>
+        <ol class="rank" id="tags"></ol>
+      </section>
+      <section class="panel wide" id="collPanel" hidden><h2>Sagas et franchises</h2><div class="collcols"><ol class="rank" id="coll"></ol><ol class="rank" id="coll2"></ol></div><p class="hint" id="collNote"></p><p class="hint">Collections TMDB dont tu as vu au moins 2 films, classées par nombre de films vus (30 au maximum). Seuls les films déjà sortis comptent.</p></section>
       <section class="panel wide" id="rePanel" hidden><h2>Les films les plus revus</h2><ol class="rank" id="reTop"></ol><p class="hint">Films revus au moins 2 fois.</p></section>
     </div>
 
@@ -210,7 +226,13 @@
     </section>
   </div>
 
-  <p class="foot narrow">Données de films&nbsp;: TMDB. Ce site n'est ni affilié ni approuvé par TMDB ou Letterboxd.</p>
+  <footer class="about narrow" id="about">
+    <h2>À propos et crédits</h2>
+    <a class="tmdblogo" href="https://www.themoviedb.org/" target="_blank" rel="noopener noreferrer"><img src="tmdb-logo.svg" alt="TMDB" height="14" onerror="this.parentNode.classList.add('nologo');this.remove()"><span class="tmdbtxt">TMDB</span></a>
+    <p>This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
+    <p>Ce produit utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB. Les données de films, les affiches et les photos viennent de <a href="https://www.themoviedb.org/" target="_blank" rel="noopener noreferrer">TMDB</a>. Ce site n'est pas non plus affilié à Letterboxd.</p>
+    <p>Projet personnel, sans but lucratif. Tes fichiers Letterboxd restent dans ton navigateur et ta clé TMDB n'est envoyée qu'à TMDB. Les données TMDB gardées dans ton navigateur sont effacées au bout de 6 mois.</p>
+  </footer>
 </main>
 
 <div id="modal" class="modal" hidden role="dialog" aria-modal="true" aria-label="Fiche du film">

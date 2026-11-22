@@ -254,7 +254,7 @@ tr.clickable:hover { background: var(--bg); }
 .favs .posters figure { width: 120px; }
 
 /* Séances sans durée */
-#yearMiss { margin-top: 12px; }
+#yearMiss, #wlMiss { margin-top: 12px; }
 
 /* Réglages du classement des acteurs les mieux notés */
 .actctl { display: grid; gap: 4px; margin-bottom: 14px; }
@@ -283,8 +283,8 @@ tr.clickable:hover { background: var(--bg); }
 .rank .chips li { font-size: .8rem; padding: 2px 10px; color: var(--muted); }
 
 /* Sagas : deux colonnes sur la pleine largeur */
-#coll { grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 10px 36px; align-items: start; }
-#coll .empty { grid-column: 1 / -1; }
+.collcols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 10px 36px; align-items: start; }
+.collcols .rank:empty { display: none; }
 
 /* Top 4 et dernier film liké côte à côte */
 .favs { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 18px 48px; }
@@ -359,3 +359,27 @@ tr.clickable:hover { background: var(--bg); }
   --accent: #2f6b4f; --accent-fg: #ffffff; --accent2: #c47a2a; --warn: #b4540a; --bar: #dbe5d8;
   --r: 16px; --rs: 10px; --bw: 1px; color-scheme: light;
 }
+
+/* Calendrier de l'année */
+.calscroll { overflow-x: auto; padding-bottom: 6px; }
+.calgrid { display: grid; gap: 3px 3px; align-items: center; min-width: 700px; }
+.calmonth { font-size: .72rem; color: var(--muted); white-space: nowrap; }
+.callab { font-size: .8rem; color: var(--muted); padding-right: 10px; }
+.calval { font-size: .8rem; color: var(--muted); padding-left: 10px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.calval.top { color: var(--accent); font-weight: 700; }
+.day { display: block; aspect-ratio: 1; min-width: 11px; border-radius: 3px; background: var(--bar); }
+.day.on { background: var(--accent); }
+.day.fut { opacity: .35; }
+.calgrid .day.on { cursor: pointer; }
+.day.sel, .day:focus-visible { outline: 2px solid var(--fg); outline-offset: 1px; }
+.daybox:empty { display: none; }
+.daybox { margin-top: 12px; padding-top: 4px; border-top: 1px solid var(--line); }
+/* Crédits TMDB */
+.about { color: var(--muted); font-size: .85rem; margin-top: 24px; }
+.about h2 { font-size: 1rem; margin: 0 0 10px; }
+.about p { margin: 8px 0; }
+.about a { color: var(--link); }
+.tmdblogo { display: inline-block; margin-bottom: 4px; }
+.tmdblogo img { display: block; height: 14px; width: auto; }
+.tmdblogo .tmdbtxt { display: none; font-weight: 700; }
+.tmdblogo.nologo .tmdbtxt { display: inline; }
