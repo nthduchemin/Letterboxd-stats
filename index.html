@@ -16,11 +16,21 @@
   <section class="panel narrow" aria-labelledby="s1">
     <h2 id="s1">1. Ton export Letterboxd</h2>
     <label class="drop" id="drop" for="file">
-      <strong id="dropTitle">Dépose ici le fichier ZIP complet</strong>
-      <span id="dropSub">ou clique pour le choisir (watched.csv seul fonctionne, sans les notes)</span>
+      <strong id="dropTitle">Dépose ici ton export Letterboxd (le fichier ZIP en entier)</strong>
+      <span id="dropSub">Ne le décompresse pas : dépose le .zip tel qu'il a été téléchargé, ou clique pour le choisir.</span>
     </label>
     <input type="file" id="file" accept=".zip,.csv">
-    <p class="hint">Sur Letterboxd&nbsp;: Paramètres &gt; Data &gt; Export your data. Le ZIP donne accès aux notes, aux coups de cœur et aux revisionnages.</p>
+    <p class="warn" id="csvWarn" hidden>Tu as déposé un seul fichier. Pour avoir toutes les statistiques (notes, coups de cœur, revisionnages, année, pseudo), il faut le ZIP en entier.</p>
+    <details class="guide">
+      <summary>Comment obtenir mon export Letterboxd&nbsp;?</summary>
+      <ol>
+        <li>Connecte-toi sur <b>letterboxd.com</b> depuis un ordinateur (cette option n'existe pas dans l'application mobile).</li>
+        <li>Clique sur ton pseudo en haut à droite, puis sur <b>Settings</b> (Paramètres).</li>
+        <li>Ouvre l'onglet <b>DATA</b>, en haut de la page.</li>
+        <li>Clique sur <b>Export your data</b>. Un fichier .zip du type <i>letterboxd-pseudo-date.zip</i> est téléchargé.</li>
+        <li>Dépose ce fichier ici <b>tel quel, sans l'ouvrir ni le décompresser</b>. Il faut le ZIP en entier : il contient plusieurs fichiers (films vus, notes, journal, coups de cœur, profil) et chacun sert à une partie des statistiques.</li>
+      </ol>
+    </details>
     <div class="check" id="rewatchRow" hidden>
       <input type="checkbox" id="rewatch" checked>
       <label for="rewatch">Compter aussi les revisionnages du journal dans les heures (<span id="rewatchN">0</span>)</label>
@@ -29,9 +39,25 @@
 
   <section class="panel narrow" aria-labelledby="s2">
     <h2 id="s2">2. Ta clé TMDB</h2>
-    <label for="key">Clé API (32 caractères) ou jeton d'accès en lecture</label>
-    <input type="password" id="key" autocomplete="off" spellcheck="false">
-    <p class="hint">Gratuite sur <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">themoviedb.org &gt; Paramètres &gt; API</a>. Chacun utilise la sienne.</p>
+    <p class="lead small">TMDB est la base de données de films qui fournit les durées, genres, acteurs et affiches. Il faut un compte gratuit et une clé personnelle, c'est l'affaire de 5 minutes.</p>
+    <details class="guide">
+      <summary>Comment créer mon compte et trouver ma clé TMDB&nbsp;?</summary>
+      <ol>
+        <li>Va sur <a href="https://www.themoviedb.org/signup" target="_blank" rel="noopener">themoviedb.org/signup</a> et crée un compte gratuit (pseudo, e-mail, mot de passe). Clique sur le lien reçu par e-mail pour valider ton adresse. Si tu as déjà un compte, connecte-toi.</li>
+        <li>Une fois connecté, ouvre <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">themoviedb.org/settings/api</a>. Tu peux aussi cliquer sur ton avatar en haut à droite, puis <b>Paramètres</b>, puis <b>API</b> dans le menu de gauche.</li>
+        <li>Si aucune clé n'existe, clique sur <b>Créer</b> (ou <b>Demander une clé API</b>), choisis <b>Developer</b> et accepte les conditions d'utilisation.</li>
+        <li>Remplis le formulaire. <b>Nom de l'application</b> : <i>Stats Letterboxd</i>. <b>Type d'utilisation</b> : <i>Personal</i> (ou <i>Other</i>). <b>Adresse internet</b> : n'importe quelle adresse valide, par exemple <i>https://example.com</i> ou ton portfolio. <b>Résumé</b> : <i>Script personnel qui calcule mes statistiques de films à partir de mon export Letterboxd.</i> Ajoute ensuite tes coordonnées (nom, adresse, téléphone) et valide.</li>
+        <li>Reviens sur la page <b>API</b> : copie la valeur <b>Clé API</b> (32 caractères, lettres et chiffres). C'est elle qu'il faut coller ci-dessous. Le <i>Jeton d'accès en lecture</i>, beaucoup plus long, fonctionne aussi.</li>
+        <li>Ne partage pas ta clé. Tu peux la régénérer à tout moment sur la même page si besoin.</li>
+      </ol>
+    </details>
+    <label for="key">Ta clé API TMDB</label>
+    <input type="password" id="key" autocomplete="off" spellcheck="false" placeholder="32 caractères">
+    <div class="check">
+      <input type="checkbox" id="remember" checked>
+      <label for="remember">Se souvenir de ma clé sur cet ordinateur</label>
+    </div>
+    <p class="hint">La clé est gardée uniquement dans ce navigateur, sur cet ordinateur, et n'est envoyée qu'à TMDB. Décoche la case sur un ordinateur partagé : la clé enregistrée est alors effacée.</p>
     <div class="row">
       <button id="go" disabled>Calculer</button>
       <button id="stop" class="ghost" hidden>Arrêter</button>
@@ -58,9 +84,26 @@
     </section>
 
     <section class="panel" id="profilePanel" hidden>
-      <h2>Ton profil de spectateur</h2>
+      <h2 id="profileTitle">Ton profil de spectateur</h2>
+      <div class="favs" id="favs" hidden>
+        <h3>Ton top 4</h3>
+        <div class="posters" id="favList"></div>
+      </div>
       <p class="lead small">Déduit uniquement de tes notes et de ce que tu regardes.</p>
       <ul class="profile" id="profileList"></ul>
+    </section>
+
+    <section class="panel" id="yearPanel" hidden>
+      <div class="yearhead">
+        <h2>Ton année <span id="yearN"></span></h2>
+        <label class="yearpick" for="yearSel">Voir une autre année
+          <select id="yearSel"></select>
+        </label>
+      </div>
+      <p class="lead small" id="yearSum"></p>
+      <h3>Ton rythme selon le jour de la semaine</h3>
+      <ol class="rank" id="weekdays"></ol>
+      <p class="hint" id="yearNote"></p>
     </section>
 
     <div class="grid">
@@ -81,27 +124,31 @@
       <section class="panel"><h2>Top 10 des genres</h2><ol class="rank" id="genres"></ol></section>
       <section class="panel"><h2>Top 10 des années de sortie</h2><ol class="rank" id="years"></ol></section>
       <section class="panel"><h2>Répartition par décennie</h2><ol class="rank" id="decades"></ol></section>
+      <section class="panel" id="decAvgPanel" hidden><h2>Note moyenne par décennie</h2><ol class="rank" id="decAvg"></ol></section>
       <section class="panel"><h2>Top 10 des réalisateurs</h2><ol class="rank" id="directors"></ol></section>
-      <section class="panel"><h2>Top 10 des acteurs (rôle majeur)</h2><ol class="rank" id="actorsM"></ol><p class="hint">Hommes dans les 5 premiers rôles du générique</p></section>
+      <section class="panel"><h2>Top 10 des acteurs (rôle majeur)</h2><ol class="rank" id="actorsM"></ol><p class="hint">Hommes dans les 5 premiers rôles du générique.</p></section>
       <section class="panel"><h2>Top 10 des actrices (rôle majeur)</h2><ol class="rank" id="actorsF"></ol><p class="hint">Femmes dans les 5 premiers rôles du générique.</p></section>
       <section class="panel"><h2>Top 10 des acteurs et actrices les plus vus, tous rôles confondus</h2><ol class="rank" id="actorsAll"></ol><p class="hint">Rôle majeur ou non : tout le générique est compté, pas seulement les 5 premiers rôles.</p></section>
-      <section class="panel"><h2>Top 10 des pays</h2><ol class="rank" id="countries"></ol></section>
       <section class="panel"><h2>Top 10 des langues</h2><ol class="rank" id="langs"></ol><p class="hint">Langue originale du film.</p></section>
 
       <section class="panel" id="bestGenresPanel" hidden><h2>Genres les mieux notés</h2><ol class="rank" id="bestGenres"></ol><p class="hint">Genres avec au moins 8 films notés.</p></section>
-      <section class="panel" id="bestDirsPanel" hidden><h2>Réalisateurs les mieux notés</h2><ol class="rank" id="bestDirs"></ol><p class="hint">Au moins 3 films notés. Clique sur un nom pour afficher ses films.</p></section>
+      <section class="panel" id="bestDirsPanel" hidden><h2>Réalisateurs les mieux notés</h2><ol class="rank" id="bestDirs"></ol><p class="hint">Au moins 3 films notés.</p></section>
       <section class="panel" id="morePanel" hidden><h2>Top 10 : plus aimés que le grand public</h2><ol class="rank" id="more"></ol><p class="hint">Écart entre ta note et la note moyenne de TMDB (ramenée sur 5), pour les films avec au moins 200 votes.</p></section>
       <section class="panel" id="lessPanel" hidden><h2>Top 10 : moins aimés que le grand public</h2><ol class="rank" id="less"></ol></section>
-      <section class="panel" id="rePanel" hidden><h2>Les films les plus revus</h2><ol class="rank" id="reTop"></ol><p class="hint">Films revus au moins 2 fois. Clique sur un titre pour afficher sa fiche.</p></section>
+      <section class="panel" id="rePanel" hidden><h2>Les films les plus revus</h2><ol class="rank" id="reTop"></ol><p class="hint">Films revus au moins 2 fois.</p></section>
     </div>
 
     <section class="panel" id="mapPanel" hidden>
       <h2>Carte du monde de tes films</h2>
-      <p class="lead small">Pays de production. Passe la souris sur un pays pour voir le nombre de films, clique pour afficher ses 5 meilleurs films. Les pays sans film restent en gris.</p>
-      <div class="map" id="map"></div>
-      <ul class="legend" id="mapLegend"></ul>
-      <div class="dropbox" id="mapSel" hidden></div>
-      <p class="hint" id="mapOther" hidden></p>
+      <p class="lead small">Pays de production. Passe la souris sur un pays pour voir le nombre de films. Clique dessus pour afficher ses 10 films les plus populaires, à droite. Les pays sans film restent en gris.</p>
+      <div class="mapwrap">
+        <div class="mapmain">
+          <div class="map" id="map"></div>
+          <ul class="legend" id="mapLegend"></ul>
+          <p class="hint" id="mapOther" hidden></p>
+        </div>
+        <aside class="mapside" id="mapSide" aria-live="polite"></aside>
+      </div>
     </section>
 
     <section class="panel narrow" id="missPanel" hidden>
@@ -119,6 +166,13 @@
 
   <p class="foot narrow">Données de films&nbsp;: TMDB. Ce site n'est ni affilié ni approuvé par TMDB ou Letterboxd.</p>
 </main>
+
+<div id="modal" class="modal" hidden role="dialog" aria-modal="true" aria-label="Fiche du film">
+  <div class="modal-box">
+    <button type="button" class="close" id="modalClose" aria-label="Fermer">×</button>
+    <div id="modalBody"></div>
+  </div>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="worldmap.js"></script>
