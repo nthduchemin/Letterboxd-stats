@@ -1,6 +1,8 @@
 (function () {
   "use strict";
   const $ = (id) => document.getElementById(id);
+  // Les affiches ne se « glissent » plus : plus de fantôme d'image au clic
+  document.addEventListener("dragstart", (e) => { if (e.target && e.target.tagName === "IMG") e.preventDefault(); });
 
   let films = [];        // {name, year}
   let rewatches = [];    // {name, year}, lignes "Rewatch" du journal
@@ -241,6 +243,43 @@
     });
   });
   $("rewatch").addEventListener("change", () => { if (!$("results").hidden && !running) render(); });
+
+
+  /* ---------- Choix du thème (retenu dans ce navigateur) ---------- */
+  const THEMES = [
+    { id: "slate", name: "Ardoise et vert", sub: "clair ou sombre, selon ton appareil", bg: "#14181c", pn: "#1d242b", ac: "#3ccf7e", a2: "#5aaee6", bd: "#2e3842" },
+    { id: "velours", name: "Salle obscure", sub: "sombre, velours et or", bg: "#1a0d10", pn: "#2a1519", ac: "#d9a441", a2: "#d4606d", bd: "#4a2a31" },
+    { id: "vintage", name: "Affiche vintage", sub: "clair, papier et encre", bg: "#efe4cc", pn: "#faf3e3", ac: "#d9482b", a2: "#2b5a8a", bd: "#1c1a17" },
+    { id: "neon", name: "Néon de nuit", sub: "sombre, rose et cyan", bg: "#0e0a1f", pn: "#181233", ac: "#ff3ea5", a2: "#35e0ff", bd: "#3a2d73" },
+    { id: "brutal", name: "Brutaliste", sub: "clair, noir et jaune", bg: "#ffffff", pn: "#ffffff", ac: "#ffd800", a2: "#0b3dff", bd: "#000000" },
+    { id: "sauge", name: "Sauge et terre cuite", sub: "clair et doux", bg: "#e9efe6", pn: "#fbfdf9", ac: "#2f6b4f", a2: "#c47a2a", bd: "#cdd9ca" }
+  ];
+  const THEME_KEY = "lb-theme-v1";
+  (function initThemes() {
+    const root = document.documentElement, box = $("themes");
+    let cur = root.getAttribute("data-theme");
+    if (!THEMES.some((t) => t.id === cur)) cur = "slate";
+    const mk = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+    const btns = THEMES.map((t) => {
+      const b = mk("button", "theme-opt"); b.type = "button"; b.setAttribute("role", "radio"); b.dataset.id = t.id;
+      const pv = mk("span", "tprev"); pv.style.background = t.bg; pv.style.border = "1px solid " + t.bd;
+      const pn = mk("span", "tpn"); pn.style.background = t.pn; pn.style.border = "1px solid " + t.bd;
+      const l1 = mk("i"); l1.style.cssText = "width:62%;background:" + t.ac;
+      const l2 = mk("i"); l2.style.cssText = "width:40%;background:" + t.a2;
+      const dots = mk("span", "dots"), d1 = mk("b"), d2 = mk("b"); d1.style.background = t.ac; d2.style.background = t.a2; dots.append(d1, d2);
+      pn.append(l1, l2, dots); pv.appendChild(pn);
+      const nm = mk("span", "tname"), lab = mk("span", "", t.name), ck = mk("span", "tck", ""); nm.append(lab, ck);
+      b.append(pv, nm, mk("span", "tsub", t.sub));
+      b.addEventListener("click", () => apply(t.id, true));
+      box.appendChild(b); return b;
+    });
+    function apply(id, save) {
+      root.setAttribute("data-theme", id);
+      btns.forEach((b) => { const on = b.dataset.id === id; b.setAttribute("aria-checked", String(on)); b.querySelector(".tck").textContent = on ? "✓" : ""; });
+      if (save) { try { localStorage.setItem(THEME_KEY, id); } catch (e) {} }
+    }
+    apply(cur, false);
+  })();
 
   /* ---------- Outils de stats ---------- */
   const fmtDur = (min) => Math.floor(min / 60) + " h " + String(min % 60).padStart(2, "0");

@@ -12,9 +12,10 @@
   --bar: #e3e9ee;
   --font: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-head: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --r: 10px; --rs: 6px; --bw: 1px; --bd: var(--line); --link: var(--accent);
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+  :root:not([data-theme]), :root[data-theme="slate"] {
     --bg: #14181c; --panel: #1d242b; --fg: #e8edf1; --muted: #94a3b0;
     --line: #2e3842; --accent: #3ccf7e; --accent-fg: #0b1a12; --accent2: #5aaee6;
     --warn: #f0a35e; --bar: #2a343d;
@@ -44,19 +45,19 @@ p { margin: 0; }
 .lead { color: var(--muted); }
 .small { font-size: .9rem; margin: -8px 0 12px; }
 
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px; min-width: 0; }
+.panel { background: var(--panel); border: var(--bw) solid var(--bd); border-radius: var(--r); padding: 20px; min-width: 0; }
 #results { display: grid; gap: 20px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: 20px; }
 
 label { display: block; font-weight: 600; font-size: .9rem; margin-bottom: 6px; }
 .hint { color: var(--muted); font-size: .85rem; margin-top: 10px; }
-.hint a { color: var(--accent); }
+.hint a { color: var(--link); }
 input[type=password] {
   width: 100%; padding: 10px 12px; font: inherit; color: var(--fg);
-  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  background: var(--bg); border: var(--bw) solid var(--bd); border-radius: var(--rs);
 }
 .drop {
-  border: 2px dashed var(--line); border-radius: 8px; padding: 24px 16px; text-align: center;
+  border: 2px dashed var(--bd); border-radius: var(--rs); padding: 24px 16px; text-align: center;
   cursor: pointer; color: var(--muted); font-weight: 400; margin: 0;
   transition: border-color .15s, background .15s;
 }
@@ -69,7 +70,7 @@ input[type=file] { display: none; }
 .check label { margin: 0; font-weight: 400; }
 .check input { width: 18px; height: 18px; accent-color: var(--accent); }
 button {
-  font: 600 1rem var(--font); padding: 11px 20px; border-radius: 6px; border: 0; cursor: pointer;
+  font: 600 1rem var(--font); padding: 11px 20px; border-radius: var(--rs); border: 0; cursor: pointer;
   background: var(--accent); color: var(--accent-fg);
 }
 button:disabled { opacity: .45; cursor: not-allowed; }
@@ -216,10 +217,10 @@ tr.clickable:hover { background: var(--bg); }
 @media (max-width: 460px) { .modal .filmcard { flex-direction: column; padding-right: 0; } }
 
 /* Guides pas à pas, année, avertissement */
-.guide { margin: 14px 0; border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; background: var(--bg); }
+.guide { margin: 14px 0; border: var(--bw) solid var(--bd); border-radius: var(--rs); padding: 10px 14px; background: var(--bg); }
 .guide summary { font-weight: 600; cursor: pointer; }
 .guide ol { margin: 10px 0 4px; padding-left: 20px; display: grid; gap: 8px; font-size: .92rem; }
-.guide a { color: var(--accent); }
+.guide a { color: var(--link); }
 .warn { margin-top: 10px; color: var(--warn); font-size: .9rem; }
 .yearhead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
 .yearhead h2 { margin-bottom: 6px; }
@@ -292,4 +293,69 @@ tr.clickable:hover { background: var(--bg); }
 
 /* Dernier film liké : même taille que le top 4, aligné à droite comme le top 4 l'est à gauche */
 .favs .posters figure { max-width: none; flex: none; }
-#favLike .posters { justify-content: flex-end; }
+
+/* Accueil : étapes à gauche, apparence à droite */
+.intro { max-width: 760px; }
+.start { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+.steps { display: grid; gap: 20px; min-width: 0; }
+.themes { position: sticky; top: 16px; }
+.themegrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.theme-opt {
+  display: grid; gap: 6px; align-content: start; text-align: left; padding: 6px; font: 500 .8rem/1.25 var(--font);
+  background: transparent; color: var(--fg); border: var(--bw) solid var(--bd); border-radius: var(--rs); cursor: pointer;
+}
+.theme-opt:hover { background: var(--bg); }
+.theme-opt[aria-checked="true"] { box-shadow: 0 0 0 2px var(--fg); }
+.theme-opt .tname { display: flex; justify-content: space-between; gap: 6px; padding: 0 2px; }
+.theme-opt .tsub { padding: 0 2px 2px; color: var(--muted); font-weight: 400; font-size: .75rem; }
+.tprev { border-radius: 4px; padding: 6px; display: block; }
+.tpn { border-radius: 3px; padding: 6px; display: grid; gap: 4px; height: 46px; align-content: start; }
+.tpn i { display: block; height: 5px; border-radius: 3px; }
+.tpn .dots { display: flex; gap: 4px; margin-top: 2px; }
+.tpn .dots b { width: 10px; height: 10px; border-radius: 50%; display: block; }
+@media (max-width: 860px) {
+  .start { grid-template-columns: minmax(0, 1fr); }
+  .themes { position: static; order: -1; }
+  .themegrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) { .themegrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Dernier film liké : affiche à gauche, texte à droite, le tout calé à droite */
+#favLike { display: grid; grid-template-columns: 120px 130px; column-gap: 12px; align-content: start; }
+#favLike h3 { grid-column: 2; grid-row: 1; }
+#lastLikeList, #lastLikeList figure { display: contents; }
+#lastLikeList img, #lastLikeList .ph { grid-column: 1; grid-row: 2; display: block; width: 120px; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 6px; background: var(--bar); }
+#lastLikeList figcaption { grid-column: 2; grid-row: 2; align-self: start; display: grid; gap: 2px; font-size: .85rem; line-height: 1.3; }
+#lastLikeList figcaption span { color: var(--muted); font-variant-numeric: tabular-nums; }
+#lastLikeList figure.clickable:hover img { outline: 2px solid var(--accent); outline-offset: 2px; }
+#lastLikeList figure.clickable:hover b { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Thèmes : seules les variables changent (le slate sans attribut suit l'appareil, clair ou sombre) */
+:root[data-theme="velours"] {
+  --bg: #1a0d10; --panel: #2a1519; --fg: #f3e6d3; --muted: #b89a86; --line: #4a2a31; --bd: #4a2a31;
+  --accent: #d9a441; --accent-fg: #1a0d10; --accent2: #d4606d; --warn: #e8863a; --bar: #3d2228;
+  --r: 6px; --rs: 4px; --bw: 1px; --font: Georgia, "Times New Roman", serif; --font-head: Georgia, "Times New Roman", serif; color-scheme: dark;
+}
+:root[data-theme="vintage"] {
+  --bg: #efe4cc; --panel: #faf3e3; --fg: #1c1a17; --muted: #6f6455; --line: #d3c5a5; --bd: #1c1a17;
+  --accent: #d9482b; --accent-fg: #ffffff; --accent2: #2b5a8a; --link: #2b5a8a; --warn: #a8480a; --bar: #e2d5b8;
+  --r: 2px; --rs: 2px; --bw: 1.5px; --font: Georgia, "Times New Roman", serif; --font-head: Georgia, "Times New Roman", serif; color-scheme: light;
+}
+:root[data-theme="neon"] {
+  --bg: #0e0a1f; --panel: #181233; --fg: #f1ecff; --muted: #9f93c9; --line: #3a2d73; --bd: #3a2d73;
+  --accent: #ff3ea5; --accent-fg: #0e0a1f; --accent2: #35e0ff; --link: #35e0ff; --warn: #ffb347; --bar: #2a2150;
+  --r: 14px; --rs: 10px; --bw: 1px; color-scheme: dark;
+}
+:root[data-theme="brutal"] {
+  --bg: #ffffff; --panel: #ffffff; --fg: #000000; --muted: #4d4d4d; --line: #cfcfcf; --bd: #000000;
+  --accent: #ffd800; --accent-fg: #000000; --accent2: #0b3dff; --link: #0b3dff; --warn: #c2410c; --bar: #eeeeee;
+  --r: 0px; --rs: 0px; --bw: 2px; --font: ui-monospace, "SF Mono", Menlo, Consolas, monospace; --font-head: ui-monospace, "SF Mono", Menlo, Consolas, monospace; color-scheme: light;
+}
+:root[data-theme="brutal"] .rank .track { border: 1px solid #000; }
+:root[data-theme="brutal"] button:not(.theme-opt) { border: 2px solid #000; }
+:root[data-theme="brutal"] :focus-visible { outline-color: #000; }
+:root[data-theme="sauge"] {
+  --bg: #e9efe6; --panel: #fbfdf9; --fg: #1d2b24; --muted: #5d6f65; --line: #cdd9ca; --bd: #cdd9ca;
+  --accent: #2f6b4f; --accent-fg: #ffffff; --accent2: #c47a2a; --warn: #b4540a; --bar: #dbe5d8;
+  --r: 16px; --rs: 10px; --bw: 1px; color-scheme: light;
+}

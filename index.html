@@ -4,16 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Heures Letterboxd</title>
+<script>try{var t=localStorage.getItem("lb-theme-v1");if(/^(slate|velours|vintage|neon|brutal|sauge)$/.test(t))document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <main>
-  <header class="narrow">
+  <header class="intro">
     <h1>Quel spectateur es-tu&nbsp;?</h1>
     <p class="lead">Dépose ton export Letterboxd, entre ta clé TMDB, et la page calcule tes heures de films, tes genres, réalisateurs, acteurs et ce que tes notes disent de toi. Tout se passe dans ton navigateur&nbsp;: ni ton fichier ni ta clé ne sont envoyés ailleurs qu'à TMDB.</p>
   </header>
 
-  <section class="panel narrow" aria-labelledby="s1">
+  <div class="start">
+  <div class="steps">
+  <section class="panel" aria-labelledby="s1">
     <h2 id="s1">1. Ton export Letterboxd</h2>
     <label class="drop" id="drop" for="file">
       <strong id="dropTitle">Dépose ici ton export Letterboxd (le fichier ZIP en entier)</strong>
@@ -37,7 +40,7 @@
     </div>
   </section>
 
-  <section class="panel narrow" aria-labelledby="s2">
+  <section class="panel" aria-labelledby="s2">
     <h2 id="s2">2. Ta clé TMDB</h2>
     <p class="lead small">TMDB est la base de données de films qui fournit les durées, genres, acteurs et affiches. Il faut un compte gratuit et une clé personnelle, c'est l'affaire de 5 minutes.</p>
     <details class="guide">
@@ -68,6 +71,14 @@
     </div>
     <p class="err" id="err" role="alert" hidden></p>
   </section>
+  </div>
+
+  <aside class="panel themes" aria-labelledby="sth">
+    <h2 id="sth">Apparence du site</h2>
+    <p class="lead small">Choisis un thème. Il est retenu sur cet ordinateur.</p>
+    <div class="themegrid" id="themes" role="radiogroup" aria-labelledby="sth"></div>
+  </aside>
+  </div>
 
   <div id="results" hidden>
     <section class="panel hero" aria-live="polite">
@@ -92,7 +103,7 @@
         </div>
         <div class="favblock" id="favLike" hidden>
           <h3>Dernier film liké</h3>
-          <div class="posters" id="lastLikeList"></div>
+          <div id="lastLikeList"></div>
         </div>
       </div>
       <p class="lead small">Déduit uniquement de tes notes et de ce que tu regardes.</p>
