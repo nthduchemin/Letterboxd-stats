@@ -3,21 +3,33 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Heures Letterboxd</title>
-<script>try{var t=localStorage.getItem("lb-theme-v1");if(/^(slate|velours|vintage|neon|brutal|sauge)$/.test(t))document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
+<meta name="theme-color" content="#111316">
+<title>Once Upon a Time in the Cinema — Ton histoire de cinéma</title>
+<script>try{var t=localStorage.getItem("lb-theme-v1");document.documentElement.setAttribute("data-theme",/^(cinematic|vintage|neon|sauge)$/.test(t)?t:"cinematic");}catch(e){}</script>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <main>
-  <header class="intro">
-    <h1>Quel spectateur es-tu&nbsp;?</h1>
-    <p class="lead">Dépose ton export Letterboxd, entre ta clé TMDB, et la page calcule tes heures de films, tes genres, réalisateurs, acteurs et ce que tes notes disent de toi. Tout se passe dans ton navigateur&nbsp;: ni ton fichier ni ta clé ne sont envoyés ailleurs qu'à TMDB.</p>
+  <header class="brandbar">
+    <a class="brand" href="#top" aria-label="Once Upon a Time in the Cinema, accueil">
+      <span class="brand-mark" aria-hidden="true"><img src="cinema-mark.png" alt=""></span>
+      <span class="brand-name">Once Upon a Time <span>in the Cinema</span><small>A PERSONAL JOURNEY THROUGH FILM</small></span>
+    </a>
+    <span class="brand-note"><i></i> A CINEMATIC JOURNEY</span>
+  </header>
+
+  <header class="intro" id="top">
+    <p class="eyebrow"><span></span> VOTRE CINÉMA, MIS EN LUMIÈRE</p>
+    <h1>Chaque film raconte<br><em>quelque chose de toi.</em></h1>
+    <p class="lead">Explore ton histoire de spectateur. Importe ton export Letterboxd et découvre les heures passées devant les films, tes genres favoris, tes réalisateurs fétiches et bien plus encore.</p>
+    <div class="intro-meta"><span>01 — IMPORTE</span><span>02 — EXPLORE</span><span>03 — REDÉCOUVRE</span></div>
+    <p class="privacy-note"><span aria-hidden="true">✳</span> Tes données restent dans ton navigateur. Seules les requêtes de films sont envoyées à TMDB.</p>
   </header>
 
   <div class="start">
   <div class="steps">
   <section class="panel" aria-labelledby="s1">
-    <h2 id="s1">1. Ton export Letterboxd</h2>
+    <p class="step-kicker">ÉTAPE 01</p><h2 id="s1">Importe ton journal</h2>
     <label class="drop" id="drop" for="file">
       <strong id="dropTitle">Dépose ici ton export Letterboxd (le fichier ZIP en entier)</strong>
       <span id="dropSub">Ne le décompresse pas : dépose le .zip tel qu'il a été téléchargé, ou clique pour le choisir.</span>
@@ -41,7 +53,7 @@
   </section>
 
   <section class="panel" aria-labelledby="s2">
-    <h2 id="s2">2. Ta clé TMDB</h2>
+    <p class="step-kicker">ÉTAPE 02</p><h2 id="s2">Connecte les données cinéma</h2>
     <p class="lead small">TMDB est la base de données de films qui fournit les durées, genres, acteurs et affiches. Il faut un compte gratuit et une clé personnelle, c'est l'affaire de 5 minutes.</p>
     <details class="guide">
       <summary>Comment créer mon compte et trouver ma clé TMDB&nbsp;?</summary>
@@ -65,9 +77,10 @@
       <button id="go" disabled>Calculer</button>
       <button id="stop" class="ghost" hidden>Arrêter</button>
     </div>
-    <div id="progress" hidden>
+    <div id="progress" class="progress-panel" hidden aria-live="polite">
       <div class="bar"><div id="fill"></div></div>
       <p class="hint" id="progText"></p>
+      <p class="progress-eta" id="etaText">Estimation du temps restant…</p>
     </div>
     <p class="err" id="err" role="alert" hidden></p>
   </section>
@@ -216,8 +229,47 @@
     <section class="panel narrow" id="missPanel" hidden>
       <details>
         <summary><span id="missN"></span> film(s) non trouvé(s) sur TMDB</summary>
+        <p class="hint">Souvent, la cause est une année différente entre Letterboxd et TMDB. Cherche le film sur TMDB, puis colle son identifiant ou le lien de sa page à côté du titre : il sera compté dans tes statistiques.</p>
         <ul class="misslist" id="missList"></ul>
+        <div class="duelbar">
+          <button type="button" class="ghost small" id="missDl">Télécharger la liste (CSV)</button>
+          <button type="button" class="ghost small" id="fixDl">Télécharger mes corrections (corrections.js)</button>
+        </div>
+        <p class="hint">Pour garder tes corrections sur GitHub, place le fichier corrections.js à côté de index.html : il est lu automatiquement.</p>
       </details>
+    </section>
+
+    <section class="panel" id="explPanel" hidden>
+      <h2>Explore tes films</h2>
+      <p class="lead small">Combine les filtres : les chiffres et la liste se mettent à jour tout de suite. Clique un film pour sa fiche.</p>
+      <div class="exctl">
+        <label>Genre<select id="exGenre"></select></label>
+        <label>Pays<select id="exCountry"></select></label>
+        <label>Époque<select id="exDec"></select></label>
+        <label>Langue d'origine<select id="exLang"><option value="">Toutes</option><option value="en">Anglais</option><option value="vo">Autres langues</option></select></label>
+        <label>Note min<select id="exMin"></select></label>
+        <label>Note max<select id="exMax"></select></label>
+        <label>Trier par<select id="exSort"><option value="note">Ta note</option><option value="recent">Plus récents</option><option value="ancien">Plus anciens</option><option value="long">Plus longs</option><option value="pop">Plus populaires</option><option value="titre">Titre (A-Z)</option></select></label>
+        <label>Titre contient<input type="search" id="exQ" placeholder="ex. nuit"></label>
+        <div class="check"><input type="checkbox" id="exLike"><label for="exLike">Coups de cœur seulement</label></div>
+        <button type="button" class="ghost small" id="exReset">Réinitialiser</button>
+      </div>
+      <p class="lead small" id="exSum"></p>
+      <div id="exList"></div>
+      <button type="button" class="ghost small" id="exMore" hidden>Afficher plus</button>
+    </section>
+
+    <section class="panel" id="duelPanel" hidden>
+      <h2>Défi entre cinéphiles</h2>
+      <p class="lead small">Compare tes statistiques avec celles d'un(e) ami(e) : compatibilité, duel en plusieurs manches, films à se conseiller et un jeu pour deviner ses notes. Chacun envoie sa « carte » à l'autre (par message, mail…), puis l'importe ici.</p>
+      <div class="duelbar">
+        <button type="button" id="cardDl">1. Télécharger ma carte</button>
+        <label class="filebtn">2. Importer la carte d'un(e) ami(e)<input type="file" id="cardIn" accept=".json,application/json" multiple hidden></label>
+      </div>
+      <p class="hint">La carte contient ton pseudo, tes statistiques, et la liste de tes films avec tes notes. Elle ne part nulle part toute seule : tu décides à qui tu l'envoies. Elle ne contient ni ta clé TMDB ni tes fichiers Letterboxd.</p>
+      <p class="hint" id="cardMsg"></p>
+      <div id="mates" class="chips mates"></div>
+      <div id="duelBody"></div>
     </section>
 
     <section class="panel" id="fivePanel" hidden>
@@ -244,6 +296,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="worldmap.js"></script>
+<script src="corrections.js"></script>
 <script src="script.js"></script>
 </body>
 </html>

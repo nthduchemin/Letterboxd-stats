@@ -99,6 +99,7 @@
     $("rewatchN").textContent = rewatches.length;
     $("csvWarn").hidden = !!texts.diary || !!texts.profile || /\.zip$/i.test(name);
     yearChoice = null;
+    resetDuel();
     update();
   }
 
@@ -176,12 +177,22 @@
     });
     return best;
   }
+  // Corrections manuelles : fichier corrections.js (window.TMDB_FIXES) + celles saisies dans ce navigateur
+  const FIX_KEY = "lb-fixes-v1";
+  let fixes = Object.assign({}, window.TMDB_FIXES || {});
+  try { Object.assign(fixes, JSON.parse(localStorage.getItem(FIX_KEY) || "{}")); } catch (e) {}
+  const saveFixes = () => { try { localStorage.setItem(FIX_KEY, JSON.stringify(fixes)); } catch (e) {} };
   function lookup(film, key) {
+    const fx = fixes[film.name + "|" + film.year];
+    if (fx) return fetchById(+fx, key);
     return tmdb("search/movie", { query: film.name, primary_release_year: film.year }, key)
       .then((r) => bestMatch(r.results, film) || tmdb("search/movie", { query: film.name }, key).then((r2) => bestMatch(r2.results, film)))
-      .then((m) => {
-        if (!m) return { ok: 0 };
-        return tmdb("movie/" + m.id, { language: "fr-FR", append_to_response: "credits" }, key).then((d) => {
+      .then((m) => (m ? fetchById(m.id, key) : { ok: 0 }));
+  }
+  function fetchById(id, key) {
+    return Promise.resolve(id)
+      .then((mid) => {
+        return tmdb("movie/" + mid, { language: "fr-FR", append_to_response: "credits" }, key).then((d) => {
           const cast = (d.credits && d.credits.cast) || [];
           const crew = ((d.credits && d.credits.crew) || []).filter((x) => x.job === "Director");
           cast.concat(crew).forEach((x) => { people[x.id] = x.name; });
@@ -219,24 +230,53 @@
     const have = new Set(films.map(keyOf)), seenWl = new Set();
     const queue = films.concat(watchlist.filter((f) => { const k = keyOf(f); if (have.has(k) || seenWl.has(k)) return false; seenWl.add(k); return true; }));
     const total = queue.length;
-    let done = 0, fatal = false;
+    let done = 0, fetched = 0, fatal = false;
+    const startedAt = Date.now();
+    const needsRequest = (f) => {
+      const k = keyOf(f), c = cache[k];
+      return !(k in cache) || (fixes[k] && !(c && c.ok && c.i === +fixes[k])) || (c && c.ok && c.col === undefined && !c.i) || (c && c.ok && c.col === undefined);
+    };
+    const requestTotal = queue.filter(needsRequest).length;
+    let etaSeconds = requestTotal ? Math.max(10, Math.ceil((requestTotal / 3) / 10) * 10) : 5;
+    let etaTimer = null;
+    const formatEta = (seconds) => {
+      const rounded = Math.max(0, Math.ceil(seconds / 10) * 10);
+      if (rounded < 60) return "environ " + rounded + " s";
+      const mins = Math.floor(rounded / 60), secs = rounded % 60;
+      return "environ " + mins + " min" + (secs ? " " + secs + " s" : "");
+    };
+    const refreshEta = () => {
+      if (fetched >= 6) {
+        const elapsed = Math.max(1, (Date.now() - startedAt) / 1000);
+        const rate = fetched / elapsed;
+        etaSeconds = Math.max(0, (requestTotal - fetched) / rate);
+      } else {
+        etaSeconds = Math.max(0, etaSeconds - 1);
+      }
+      $("etaText").textContent = requestTotal
+        ? "Temps restant estimé : " + formatEta(etaSeconds) + " · estimation indicative"
+        : "Données déjà en cache : calcul presque terminé.";
+    };
     running = true; cancelled = false; update();
     $("go").hidden = true; $("stop").hidden = false; $("progress").hidden = false;
     $("err").hidden = true; $("results").hidden = true;
 
     const tick = () => {
       $("fill").style.width = (done / total * 100) + "%";
-      $("progText").textContent = done + " / " + total + " films";
+      $("progText").textContent = done + " / " + total + " films analysés";
+      refreshEta();
     };
     tick();
+    etaTimer = setInterval(refreshEta, 1000);
 
     const worker = () => {
       if (cancelled || fatal || !queue.length) return Promise.resolve();
       const f = queue.shift(), k = keyOf(f);
       const c0 = cache[k];
-      let p;
-      if (!(k in cache) || (c0 && c0.ok && c0.col === undefined && !c0.i)) p = lookup(f, key).then((res) => { cache[k] = res; });
+      let p, didRequest = false;
+      if (!(k in cache) || (c0 && c0.ok && c0.col === undefined && !c0.i) || (fixes[k] && !(c0 && c0.ok && c0.i === +fixes[k]))) { didRequest = true; p = lookup(f, key).then((res) => { cache[k] = res; }); }
       else if (c0 && c0.ok && c0.col === undefined) {
+        didRequest = true;
         // Ancienne entrée du cache : on ne récupère que la collection (saga) du film
         p = tmdb("movie/" + c0.i, { language: "fr-FR" }, key).then((d) => {
           c0.col = d.belongs_to_collection ? d.belongs_to_collection.id : 0;
@@ -244,13 +284,15 @@
         });
       } else p = Promise.resolve();
       return p.catch((e) => { if (e.fatal) fatal = true; })
-        .then(() => { done++; if (done % 10 === 0) { tick(); saveCache(); } return worker(); });
+        .then(() => { done++; if (didRequest) fetched++; if (done % 5 === 0) { tick(); saveCache(); } return worker(); });
     };
     Promise.all([1, 2, 3, 4, 5, 6].map(worker)).then(() => {
+      if (etaTimer) clearInterval(etaTimer);
       saveCache(); tick();
       running = false; $("go").hidden = false; $("stop").hidden = true; update();
       if (fatal) { showErr("TMDB a refusé la clé. Retourne sur themoviedb.org > Paramètres > API et copie la valeur « Clé API » en entier, sans espace."); $("progress").hidden = true; return; }
-      if (cancelled) { $("progText").textContent = "Arrêté à " + done + " / " + total + ". Relance pour reprendre là où tu t'étais arrêté."; return; }
+      if (cancelled) { $("progText").textContent = "Arrêté à " + done + " / " + total + ". Relance pour reprendre là où tu t'étais arrêté."; $("etaText").textContent = "Tu pourras reprendre : les données déjà récupérées sont conservées."; return; }
+      $("etaText").textContent = "Analyse terminée ! Préparation de tes statistiques…";
       render();
     });
   });
@@ -259,18 +301,16 @@
 
   /* ---------- Choix du thème (retenu dans ce navigateur) ---------- */
   const THEMES = [
-    { id: "slate", name: "Ardoise et vert", sub: "clair ou sombre, selon ton appareil", bg: "#14181c", pn: "#1d242b", ac: "#3ccf7e", a2: "#5aaee6", bd: "#2e3842" },
-    { id: "velours", name: "Salle obscure", sub: "sombre, velours et or", bg: "#1a0d10", pn: "#2a1519", ac: "#d9a441", a2: "#d4606d", bd: "#4a2a31" },
+    { id: "cinematic", name: "Western électrique", sub: "encre, ivoire et ambre", bg: "#111316", pn: "#1a1d21", ac: "#e5b65c", a2: "#d77b68", bd: "#303238" },
     { id: "vintage", name: "Affiche vintage", sub: "clair, papier et encre", bg: "#efe4cc", pn: "#faf3e3", ac: "#d9482b", a2: "#2b5a8a", bd: "#1c1a17" },
     { id: "neon", name: "Néon de nuit", sub: "sombre, rose et cyan", bg: "#0e0a1f", pn: "#181233", ac: "#ff3ea5", a2: "#35e0ff", bd: "#3a2d73" },
-    { id: "brutal", name: "Brutaliste", sub: "clair, noir et jaune", bg: "#ffffff", pn: "#ffffff", ac: "#ffd800", a2: "#0b3dff", bd: "#000000" },
     { id: "sauge", name: "Sauge et terre cuite", sub: "clair et doux", bg: "#e9efe6", pn: "#fbfdf9", ac: "#2f6b4f", a2: "#c47a2a", bd: "#cdd9ca" }
   ];
   const THEME_KEY = "lb-theme-v1";
   (function initThemes() {
     const root = document.documentElement, box = $("themes");
     let cur = root.getAttribute("data-theme");
-    if (!THEMES.some((t) => t.id === cur)) cur = "slate";
+    if (!THEMES.some((t) => t.id === cur)) cur = "cinematic";
     const mk = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
     const btns = THEMES.map((t) => {
       const b = mk("button", "theme-opt"); b.type = "button"; b.setAttribute("role", "radio"); b.dataset.id = t.id;
@@ -291,6 +331,27 @@
       if (save) { try { localStorage.setItem(THEME_KEY, id); } catch (e) {} }
     }
     apply(cur, false);
+  })();
+
+  /* ---------- Animations d'apparition (accessibles et progressives) ---------- */
+  (function initMotion() {
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    document.documentElement.classList.add("js-motion");
+    const panels = Array.from(document.querySelectorAll("main > .panel, main .steps > .panel, main .grid > .panel, #results > .panel"));
+    if (!("IntersectionObserver" in window)) return;
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("is-visible");
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.08, rootMargin: "0px 0px -35px 0px" });
+    panels.forEach((panel, index) => {
+      panel.classList.add("motion-ready");
+      panel.style.transitionDelay = Math.min(index % 3, 2) * 70 + "ms";
+      observer.observe(panel);
+    });
   })();
 
   /* ---------- Outils de stats ---------- */
@@ -371,7 +432,7 @@
   function filmsList(items, o) {
     const box = document.createElement("div"); box.className = "films";
     // o.sort "pop" : les plus populaires d'abord (nombre de votes TMDB) ; sinon les mieux notés par toi d'abord
-    let list = items.slice().sort(o.sort === "pop"
+    let list = o.sort === "none" ? items.slice() : items.slice().sort(o.sort === "pop"
       ? (a, b) => b.n - a.n || b.v - a.v || a.year - b.year
       : (a, b) => (b.r == null ? -1 : b.r) - (a.r == null ? -1 : a.r) || b.v - a.v || a.year - b.year);
     if (o.limit) list = list.slice(0, o.limit);
@@ -638,7 +699,7 @@
     films.forEach((f) => {
       const c = cache[keyOf(f)];
       if (c && c.ok) all.push(Object.assign({ name: f.name, year: parseInt(f.year, 10), uri: (f.uri || "").replace(/\/$/, ""), r: ratings && ratings.has(keyOf(f)) ? ratings.get(keyOf(f)) : null, liked: likes ? likes.has(keyOf(f)) : false }, c));
-      else missing.push(f.name + " (" + f.year + ")");
+      else missing.push(f);
     });
     const timed = all.filter((x) => x.rt > 0);
     const totalMin = timed.reduce((s, x) => s + x.rt, 0);
@@ -712,15 +773,19 @@
     renderYear(byKey);
     renderWatchlist();
     renderTags(byKey);
+    renderExplorer(all);
+    renderDuelPanel();
 
     // Non trouvés
     const ul = $("missList"); ul.textContent = "";
-    missing.forEach((m) => { const li = document.createElement("li"); li.textContent = m; ul.appendChild(li); });
+    missing.forEach((f) => ul.appendChild(missItem(f)));
+    lastMissing = missing;
     $("missN").textContent = missing.length;
     $("missPanel").hidden = !missing.length;
 
     $("results").hidden = false;
-    $("results").scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!keepScroll) $("results").scrollIntoView({ behavior: "smooth", block: "start" });
+    keepScroll = false;
   }
 
 
@@ -1078,6 +1143,420 @@
   }
 
   $("yearSel").addEventListener("change", () => { yearChoice = +$("yearSel").value; if (lastByKey) renderYear(lastByKey); });
+
+  /* ---------- Explorateur : filtres combinables sur tous tes films ---------- */
+  const mkEl = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+  let lastAll = [], exLimit = 15;
+  const EX_IDS = ["exGenre", "exCountry", "exDec", "exLang", "exMin", "exMax", "exLike", "exQ", "exSort"];
+  const normCode = (c) => (c === "SU" ? "RU" : c);
+  function renderExplorer(all) {
+    lastAll = all;
+    const panel = $("explPanel"); panel.hidden = !all.length;
+    if (!all.length) return;
+    const fill = (id, first, opts) => {
+      const s = $(id), cur = s.value; s.textContent = "";
+      s.appendChild(Object.assign(mkEl("option", "", first), { value: "" }));
+      opts.forEach((o) => s.appendChild(Object.assign(mkEl("option", "", o[1]), { value: o[0] })));
+      if (opts.some((o) => String(o[0]) === cur)) s.value = cur;
+    };
+    fill("exGenre", "Tous les genres", group(all, (x) => x.g).sort(byCount).map((g) => [g.k, g.k + " (" + g.n + ")"]));
+    fill("exCountry", "Tous les pays", group(all, (x) => (x.c || []).map(normCode)).sort(byCount).map((g) => [g.k, safeName(regionNames, g.k) + " (" + g.n + ")"]));
+    fill("exDec", "Toutes les époques", group(all, (x) => [Math.floor(x.year / 10) * 10]).sort((a, b) => b.k - a.k).map((g) => [g.k, g.k + "s (" + g.n + ")"]));
+    const stars = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].map((v) => [v, nf1(v) + " ★"]);
+    fill("exMin", "Note min", stars); fill("exMax", "Note max", stars);
+    runExplorer(true);
+  }
+  function runExplorer(reset) {
+    if (reset) exLimit = 15;
+    const v = (id) => $(id).value, g = v("exGenre"), c = v("exCountry"), d = v("exDec"), lg = v("exLang"), q = (v("exQ") || "").trim().toLowerCase();
+    const mn = v("exMin") === "" ? null : +v("exMin"), mx = v("exMax") === "" ? null : +v("exMax");
+    const list = lastAll.filter((x) =>
+      (!g || (x.g || []).indexOf(g) >= 0) && (!c || (x.c || []).map(normCode).indexOf(c) >= 0) && (!d || Math.floor(x.year / 10) * 10 === +d)
+      && (!lg || (lg === "vo" ? x.l && x.l !== "en" : x.l === "en"))
+      && (mn == null || (x.r != null && x.r >= mn)) && (mx == null || (x.r != null && x.r <= mx))
+      && (!$("exLike").checked || x.liked) && (!q || x.name.toLowerCase().indexOf(q) >= 0));
+    const sorts = {
+      note: (a, b) => (b.r == null ? -1 : b.r) - (a.r == null ? -1 : a.r) || b.v - a.v,
+      recent: (a, b) => b.year - a.year, ancien: (a, b) => a.year - b.year,
+      long: (a, b) => (b.rt || 0) - (a.rt || 0), pop: (a, b) => b.n - a.n, titre: (a, b) => a.name.localeCompare(b.name)
+    };
+    list.sort(sorts[v("exSort")] || sorts.note);
+    const min = list.reduce((s, x) => s + (x.rt || 0), 0), rated = list.filter((x) => x.r != null), pub = list.filter((x) => x.v > 0 && x.n >= 50);
+    const sum = $("exSum");
+    sum.textContent = list.length
+      ? plural(list.length, "film") + " (" + Math.round(list.length / lastAll.length * 100) + " % de tes films) · " + fmtDur(min) + " de cinéma"
+        + (rated.length ? " · ta moyenne " + nf1(mean(rated.map((x) => x.r))) + " ★" : "")
+        + (pub.length ? " · moyenne TMDB " + nf1(mean(pub.map((x) => x.v / 2))) + " ★" : "")
+      : "Aucun film ne correspond à ces filtres.";
+    const box = $("exList"); box.textContent = "";
+    if (list.length) box.appendChild(filmsList(list, { limit: exLimit, sort: "none" }));
+    $("exMore").hidden = list.length <= exLimit;
+    $("exMore").textContent = "Afficher plus (" + Math.min(15, list.length - exLimit) + " de plus sur " + (list.length - exLimit) + ")";
+  }
+  EX_IDS.forEach((id) => $(id).addEventListener("input", () => runExplorer(true)));
+  $("exMore").addEventListener("click", () => { exLimit += 15; runExplorer(false); });
+  $("exReset").addEventListener("click", () => {
+    EX_IDS.forEach((id) => { const e = $(id); if (e.type === "checkbox") e.checked = false; else e.value = id === "exSort" ? "note" : ""; });
+    runExplorer(true);
+  });
+
+  /* ---------- Défi entre cinéphiles : chacun exporte une « carte », l'autre l'importe (rien ne passe par un serveur) ---------- */
+  /* ---------- Films non trouvés : vérification et correction à la main ---------- */
+  let lastMissing = [], keepScroll = false;
+  function missItem(f) {
+    const li = mkEl("li", "missitem");
+    li.appendChild(mkEl("b", "", f.name + " (" + f.year + ")"));
+    const links = mkEl("span", "misslinks");
+    const lk = (t, u) => { const a = mkEl("a", "", t); a.href = u; a.target = "_blank"; a.rel = "noopener noreferrer"; return a; };
+    links.appendChild(lk("Chercher sur TMDB", "https://www.themoviedb.org/search/movie?query=" + encodeURIComponent(f.name)));
+    if (/^https?:\/\//.test(f.uri || "")) links.appendChild(lk("Voir sur Letterboxd", f.uri));
+    li.appendChild(links);
+    const row = mkEl("span", "missfix");
+    const inp = mkEl("input"); inp.type = "text"; inp.placeholder = "ID ou lien TMDB du film"; inp.setAttribute("aria-label", "ID ou lien TMDB pour " + f.name);
+    const btn = mkEl("button", "ghost small", "Associer"); btn.type = "button";
+    const msg = mkEl("span", "hint");
+    const go = () => {
+      const raw = inp.value.trim();
+      if (/\/tv\//.test(raw)) { msg.textContent = "C'est une série : il faut un film."; return; }
+      const m = raw.match(/(\d{1,9})/);
+      if (!m) { msg.textContent = "Colle l'identifiant ou le lien de la page du film sur TMDB."; return; }
+      msg.textContent = "Recherche…"; btn.disabled = true;
+      fetchById(+m[1], apiKey()).then((res) => {
+        cache[keyOf(f)] = res; fixes[keyOf(f)] = +m[1]; saveFixes(); saveCache();
+        const d = $("missPanel").querySelector("details"), wasOpen = d && d.open;
+        keepScroll = true; render();
+        const d2 = $("missPanel").querySelector("details"); if (d2 && wasOpen) d2.open = true;
+      }).catch(() => { btn.disabled = false; msg.textContent = "Film introuvable avec cet identifiant."; });
+    };
+    btn.addEventListener("click", go);
+    inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go(); } });
+    row.append(inp, btn); li.append(row, msg);
+    return li;
+  }
+  $("missDl").addEventListener("click", () => {
+    const q = (t) => '"' + String(t).replace(/"/g, '""') + '"';
+    const csv = "Name,Year,Letterboxd URI\n" + lastMissing.map((f) => [q(f.name), f.year, q(f.uri || "")].join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv" }));
+    const a = document.createElement("a"); a.href = url; a.download = "films-non-trouves.csv";
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+  });
+  $("fixDl").addEventListener("click", () => {
+    const keys = Object.keys(fixes);
+    const txt = "// Corrections manuelles : \"Titre|Année\": identifiant du film sur TMDB.\nwindow.TMDB_FIXES = {\n" + keys.map((k) => "  " + JSON.stringify(k) + ": " + (+fixes[k] || 0)).join(",\n") + "\n};\n";
+    const url = URL.createObjectURL(new Blob([txt], { type: "text/javascript" }));
+    const a = document.createElement("a"); a.href = url; a.download = "corrections.js";
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+  });
+
+  let mates = [];
+  function buildCard() {
+    const all = lastAll, rated = all.filter((x) => x.r != null);
+    const gc = {}, dc = {}, cs = new Set();
+    all.forEach((x) => {
+      (x.g || []).forEach((g) => { gc[g] = (gc[g] || 0) + 1; });
+      const d = Math.floor(x.year / 10) * 10; dc[d] = (dc[d] || 0) + 1;
+      (x.c || []).forEach((c) => cs.add(normCode(c)));
+    });
+    const longest = all.slice().sort((a, b) => (b.rt || 0) - (a.rt || 0))[0];
+    return {
+      app: "lb-stats-card", v: 1, user: username || "Anonyme", at: isoOf(new Date()),
+      n: all.length, min: all.reduce((s, x) => s + (x.rt || 0), 0), avg: rated.length ? mean(rated.map((x) => x.r)) : null,
+      fives: rated.filter((x) => x.r === 5).length, likes: likes ? likes.size : null, nc: cs.size,
+      vo: all.length ? all.filter((x) => x.l && x.l !== "en").length / all.length : 0,
+      long: longest ? { name: longest.name, rt: longest.rt || 0 } : { name: "", rt: 0 },
+      gc: gc, dc: dc, f: all.map((x) => [x.name, x.year, x.r, x.i || 0, x.rt || 0])
+    };
+  }
+  function parseCard(txt) {
+    let c; try { c = JSON.parse(txt); } catch (e) { return null; }
+    if (!c || c.app !== "lb-stats-card" || c.v !== 1 || !Array.isArray(c.f)) return null;
+    const num = (x) => (Number.isFinite(+x) ? +x : 0);
+    const obj = (o) => { const r = {}; if (o && typeof o === "object") Object.keys(o).slice(0, 100).forEach((k) => { r[String(k).slice(0, 60)] = num(o[k]); }); return r; };
+    const f = c.f.slice(0, 20000).filter((a) => Array.isArray(a) && typeof a[0] === "string")
+      .map((a) => [a[0].slice(0, 200), num(a[1]), a[2] == null ? null : Math.min(5, Math.max(0.5, num(a[2]))), Math.max(0, Math.floor(num(a[3]))), num(a[4])]);
+    if (!f.length) return null;
+    return {
+      user: String(c.user || "Anonyme").slice(0, 40), n: f.length, min: num(c.min), avg: c.avg == null ? null : num(c.avg), fives: num(c.fives),
+      likes: c.likes == null ? null : num(c.likes), nc: num(c.nc), vo: num(c.vo),
+      long: { name: String((c.long && c.long.name) || "").slice(0, 200), rt: num(c.long && c.long.rt) }, gc: obj(c.gc), dc: obj(c.dc), f: f
+    };
+  }
+  const cosine = (a, b) => {
+    const ks = Array.from(new Set(Object.keys(a).concat(Object.keys(b)))); let s = 0, x = 0, y = 0;
+    ks.forEach((k) => { const p = a[k] || 0, q = b[k] || 0; s += p * q; x += p * p; y += q * q; });
+    return x && y ? s / Math.sqrt(x * y) : 0;
+  };
+  const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; } return a; };
+  const fk = (f) => f[0] + "|" + f[1];
+
+  function renderMates() {
+    const box = $("mates"); box.textContent = "";
+    mates.forEach((m, i) => {
+      const b = mkEl("button", "ghost small", m.user + " · " + plural(m.n, "film")); b.type = "button";
+      b.addEventListener("click", () => { box.querySelectorAll("button").forEach((x) => x.classList.remove("on")); b.classList.add("on"); renderDuel(m); });
+      box.appendChild(b);
+    });
+  }
+  function listBlock(title, rows, empty) {
+    const d = mkEl("div", "duelblock"); d.appendChild(mkEl("h4", "", title));
+    if (!rows.length) { d.appendChild(mkEl("p", "hint", empty)); return d; }
+    const ul = mkEl("ul", "duellist");
+    rows.forEach((r) => {
+      const li = mkEl("li");
+      let t;
+      if (r.id) { t = mkEl("a", "", r.label); t.href = "https://www.themoviedb.org/movie/" + r.id; t.target = "_blank"; t.rel = "noopener noreferrer"; } else t = mkEl("span", "", r.label);
+      li.append(t, mkEl("em", "", r.note)); ul.appendChild(li);
+    });
+    d.appendChild(ul); return d;
+  }
+
+  function renderDuel(you) {
+    const box = $("duelBody"); box.textContent = "";
+    const me = buildCard(), A = me.user === you.user ? "Toi" : me.user, B = you.user === me.user ? you.user + " (autre carte)" : you.user;
+    const mine = new Map(me.f.map((f) => [fk(f), f])), theirs = new Map(you.f.map((f) => [fk(f), f]));
+    const common = me.f.filter((f) => theirs.has(fk(f)));
+    const both = common.filter((f) => f[2] != null && theirs.get(fk(f))[2] != null);
+
+    // Compatibilité : goûts sur les films en commun, genres, époques
+    const parts = [];
+    if (both.length >= 5) {
+      const r = pearson(both.map((f) => f[2]), both.map((f) => theirs.get(fk(f))[2]));
+      parts.push(["Même avis sur les films vus en commun", (r + 1) / 2, both.length + " films notés par vous deux, corrélation " + nf1(r)]);
+    }
+    parts.push(["Mêmes genres", cosine(me.gc, you.gc), "ressemblance des genres regardés"]);
+    parts.push(["Mêmes époques", cosine(me.dc, you.dc), "ressemblance des décennies regardées"]);
+    const score = Math.round(mean(parts.map((p) => p[1])) * 100);
+    const head = mkEl("div", "duelhead");
+    head.append(mkEl("div", "bigscore", score + " %"), mkEl("div", "", "de compatibilité entre " + A + " et " + B + " · " + plural(common.length, "film") + " en commun"));
+    box.appendChild(head);
+    const pl = mkEl("ul", "duelparts");
+    parts.forEach((p) => { const li = mkEl("li"); li.append(mkEl("span", "", p[0] + " : " + Math.round(p[1] * 100) + " %"), mkEl("em", "", p[2])); pl.appendChild(li); });
+    box.appendChild(pl);
+
+    // Manches : un point par catégorie gagnée
+    const rounds = [
+      ["Heures de cinéma", me.min, you.min, (v) => Math.round(v / 60) + " h"],
+      ["Films vus", me.n, you.n, (v) => nf.format(v)],
+      ["Spectateur le plus généreux", me.avg, you.avg, (v) => nf1(v) + " ★"],
+      ["Coups de foudre (5 ★)", me.fives, you.fives, (v) => nf.format(v)],
+      ["Pays explorés", me.nc, you.nc, (v) => nf.format(v)],
+      ["Ouverture au cinéma non anglophone", me.vo, you.vo, (v) => Math.round(v * 100) + " %"],
+      ["Film le plus long vu", me.long.rt, you.long.rt, (v) => fmtDur(v)],
+      ["Coups de cœur", me.likes, you.likes, (v) => nf.format(v)]
+    ].filter((r) => r[1] != null && r[2] != null);
+    let pa = 0, pb = 0;
+    const rb = mkEl("div", "rounds"); rb.appendChild(mkEl("h4", "", "Le duel en " + rounds.length + " manches"));
+    rounds.forEach((r) => {
+      const w = r[1] > r[2] ? 1 : r[1] < r[2] ? 2 : 0; if (w === 1) pa++; if (w === 2) pb++;
+      const row = mkEl("div", "round");
+      row.append(mkEl("b", w === 1 ? "win" : "", r[3](r[1])), mkEl("span", "", r[0]), mkEl("b", w === 2 ? "win" : "", r[3](r[2])));
+      rb.appendChild(row);
+    });
+    rb.appendChild(mkEl("p", "lead small", pa === pb ? "Égalité parfaite : " + pa + " manches partout." : (pa > pb ? A : B) + " l'emporte " + Math.max(pa, pb) + " manches à " + Math.min(pa, pb) + "."));
+    box.appendChild(rb);
+
+    // Listes : films en commun adorés, désaccords, à découvrir chacun de son côté
+    const fl = (f, note) => ({ label: f[0] + " (" + f[1] + ")", id: f[3], note: note });
+    const star = (v) => nf1(v) + " ★";
+    const loved = both.filter((f) => f[2] >= 4 && theirs.get(fk(f))[2] >= 4).sort((a, b) => b[2] + theirs.get(fk(b))[2] - a[2] - theirs.get(fk(a))[2]).slice(0, 5);
+    const clash = both.map((f) => ({ f: f, d: Math.abs(f[2] - theirs.get(fk(f))[2]) })).filter((e) => e.d >= 1.5).sort((a, b) => b.d - a.d).slice(0, 5);
+    const forMe = you.f.filter((f) => f[2] != null && f[2] >= 4.5 && !mine.has(fk(f))).sort((a, b) => b[2] - a[2] || a[0].localeCompare(b[0])).slice(0, 5);
+    const forYou = me.f.filter((f) => f[2] != null && f[2] >= 4.5 && !theirs.has(fk(f))).sort((a, b) => b[2] - a[2] || a[0].localeCompare(b[0])).slice(0, 5);
+    const lists = mkEl("div", "duellists");
+    lists.append(
+      listBlock("Vous les avez adorés tous les deux", loved.map((f) => fl(f, star(f[2]) + " / " + star(theirs.get(fk(f))[2]))), "Pas encore 4 ★ ou plus des deux côtés."),
+      listBlock("Vos plus gros désaccords", clash.map((e) => fl(e.f, A + " " + star(e.f[2]) + " / " + you.user + " " + star(theirs.get(fk(e.f))[2]))), "Aucun écart d'au moins 1,5 ★ : vous êtes d'accord."),
+      listBlock(you.user + " te conseille (à voir)", forMe.map((f) => fl(f, star(f[2]))), "Rien de noté 4,5 ★ ou plus que tu n'aies déjà vu."),
+      listBlock("Tu conseilles à " + you.user + " (à voir)", forYou.map((f) => fl(f, star(f[2]))), "Rien de noté 4,5 ★ ou plus que " + you.user + " n'ait déjà vu.")
+    );
+    box.appendChild(lists);
+
+    // Jeux : connais-tu les goûts de l'autre personne ?
+    const game = mkEl("div", "guess"); box.appendChild(game);
+    buildGames(game, me, you, theirs, both);
+  }
+
+  /* ---------- Jeux du défi : trois façons de tester si tu connais les goûts de l'autre ---------- */
+  function buildGames(host, me, you, theirs, both) {
+    const P = you.user, star = (v) => nf1(v) + " ★";
+    const info = new Map(lastAll.map((x) => [x.name + "|" + x.year, x]));
+    const imgOf = (name, year, w) => {
+      const x = info.get(name + "|" + year);
+      if (!x || !x.p) return null;
+      const im = document.createElement("img"); im.src = IMG + "w185" + x.p; im.alt = ""; im.width = w || 69; im.height = Math.round((w || 69) * 1.5); return im;
+    };
+    const bestKey = (id, n) => "lb-best|" + id + "|" + P + "|" + n;
+    const getBest = (id, n) => { try { return +localStorage.getItem(bestKey(id, n)) || 0; } catch (e) { return 0; } };
+    const setBest = (id, n, v) => { try { localStorage.setItem(bestKey(id, n), String(v)); } catch (e) {} };
+    const rated = you.f.filter((f) => f[2] != null);
+
+    const head = mkEl("div", "gamehead");
+    head.appendChild(mkEl("h4", "", "Jeux : connais-tu les goûts de " + P + " ?"));
+    const stage = mkEl("div", "gamestage");
+    const nsel = mkEl("select"); nsel.setAttribute("aria-label", "Nombre de manches");
+    [5, 10].forEach((n) => { const o = mkEl("option", "", n + " manches"); o.value = n; nsel.appendChild(o); });
+    const modes = mkEl("div", "gamemodes");
+
+    const GAMES = [
+      { id: "guess", name: "Devine la note", desc: "Un film que vous avez vu tous les deux : quelle note a donnée " + P + " ? Un indice (note TMDB) coûte 1 point.", need: both.length >= 3, why: "il faut au moins 3 films notés par vous deux (vous en avez " + both.length + ")", maxPer: 3, goodAt: 2 },
+      { id: "pair", name: "Lequel a la meilleure note ?", desc: "Deux films au choix : lequel a reçu la meilleure note de " + P + " ? Les films peuvent être ceux que tu n'as pas vus.", need: rated.length >= 8, why: "il faut au moins 8 films notés dans la carte de " + P, maxPer: 2, goodAt: 2 },
+      { id: "sign", name: "Plus ou moins que toi", desc: "Sur un film vu par vous deux : la note de " + P + " est-elle plus haute, identique ou plus basse que la tienne ?", need: both.length >= 3, why: "il faut au moins 3 films notés par vous deux (vous en avez " + both.length + ")", maxPer: 3, goodAt: 2 }
+    ];
+
+    // Moteur commun : manches, série, bonus, récapitulatif et record
+    function run(g, n) {
+      const rounds = g.make(n);
+      let i = 0, score = 0, streak = 0; const log = [];
+      const step = () => {
+        stage.textContent = "";
+        if (i >= rounds.length) return finish();
+        stage.appendChild(mkEl("p", "gameprog", g.name + " · manche " + (i + 1) + " sur " + rounds.length + " · score " + score + (streak >= 2 ? " · série de " + streak : "")));
+        const bx = mkEl("div", "gameround"); stage.appendChild(bx);
+        rounds[i](bx, (pts, msg, line) => {
+          let bonus = 0;
+          if (pts >= g.goodAt) { streak++; if (streak >= 3) bonus = 1; } else streak = 0;
+          score += pts + bonus; log.push(line + " (" + (pts + bonus >= 0 ? "+" : "") + (pts + bonus) + (bonus ? ", dont 1 de bonus série" : "") + ")");
+          bx.appendChild(mkEl("p", "lead small", msg + (bonus ? " Série de " + streak + " bonnes manches : +1 point de bonus !" : "")));
+          const nx = mkEl("button", "", i + 1 < rounds.length ? "Manche suivante" : "Voir mon score"); nx.type = "button";
+          nx.addEventListener("click", () => { i++; step(); }); bx.appendChild(nx); nx.focus();
+        });
+      };
+      const finish = () => {
+        const mx = rounds.length * g.maxPer, pct = mx ? score / mx : 0, prev = getBest(g.id, rounds.length);
+        stage.appendChild(mkEl("h4", "", "Score : " + score + " / " + mx + " (" + Math.round(pct * 100) + " %)"));
+        stage.appendChild(mkEl("p", "lead small", pct >= 0.8 ? "Tu connais très bien les goûts de " + P + "." : pct >= 0.5 ? "Pas mal : tu connais bien les goûts de " + P + "." : pct >= 0.3 ? "Les goûts de " + P + " te surprennent parfois." : "Les goûts de " + P + " te réservent encore beaucoup de surprises."));
+        if (score > prev) { setBest(g.id, rounds.length, score); stage.appendChild(mkEl("p", "lead small", prev ? "Nouveau record ! (ancien : " + prev + ")" : "Premier score enregistré dans ce navigateur.")); }
+        else stage.appendChild(mkEl("p", "hint", "Ton record sur " + rounds.length + " manches : " + prev + "."));
+        const ul = mkEl("ul", "gamelog"); log.forEach((t) => ul.appendChild(mkEl("li", "", t))); stage.appendChild(ul);
+        const again = mkEl("button", "", "Rejouer"); again.type = "button"; again.addEventListener("click", () => run(g, n));
+        const back = mkEl("button", "ghost", "Changer de jeu"); back.type = "button"; back.addEventListener("click", () => { stage.textContent = ""; });
+        const bar = mkEl("div", "duelbar"); bar.append(again, back); stage.appendChild(bar);
+      };
+      step();
+    }
+
+    GAMES[0].make = (n) => shuffle(both).slice(0, n).map((f) => (bx, done) => {
+      const real = theirs.get(fk(f))[2], x = info.get(f[0] + "|" + f[1]);
+      const row = mkEl("div", "guessrow"), im = imgOf(f[0], f[1]); if (im) row.appendChild(im);
+      const tx = mkEl("div"); tx.append(mkEl("b", "", f[0] + " (" + f[1] + ")"), mkEl("span", "", "Ta note : " + star(f[2]) + ". Quelle note a donnée " + P + " ?"));
+      row.appendChild(tx); bx.appendChild(row);
+      let hinted = false;
+      const hintBox = mkEl("p", "hint");
+      if (x && x.v > 0 && x.n >= 50) {
+        const hb = mkEl("button", "ghost small", "Indice : note moyenne TMDB (−1 point)"); hb.type = "button";
+        hb.addEventListener("click", () => { hinted = true; hb.remove(); hintBox.textContent = "Note moyenne du grand public sur TMDB : " + star(x.v / 2) + "."; });
+        bx.appendChild(hb);
+      }
+      bx.appendChild(hintBox);
+      const bt = mkEl("div", "guessbtns");
+      [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].forEach((v) => {
+        const b = mkEl("button", "ghost small", nf1(v) + " ★"); b.type = "button";
+        b.addEventListener("click", () => {
+          const diff = Math.abs(v - real); let gain = diff === 0 ? 3 : diff <= 0.5 ? 2 : diff <= 1 ? 1 : 0;
+          if (hinted) gain = Math.max(0, gain - 1);
+          bt.querySelectorAll("button").forEach((y) => { y.disabled = true; });
+          done(gain, P + " a mis " + star(real) + " : " + (diff === 0 ? "en plein dans le mille !" : diff <= 0.5 ? "très proche." : diff <= 1 ? "pas loin." : "loin du compte.") + (hinted ? " (indice utilisé : −1)" : ""),
+            f[0] + " : " + star(v) + " proposé, " + star(real) + " réel");
+        });
+        bt.appendChild(b);
+      });
+      bx.appendChild(bt);
+    });
+
+    GAMES[1].make = (n) => {
+      const pool = shuffle(rated), pairs = [];
+      while (pool.length >= 2 && pairs.length < n) {
+        const a = pool.pop(); const j = pool.findIndex((b) => Math.abs(b[2] - a[2]) >= 1);
+        if (j >= 0) pairs.push([a, pool.splice(j, 1)[0]]);
+      }
+      return pairs.map((pr) => (bx, done) => {
+        bx.appendChild(mkEl("p", "lead small", "Lequel de ces deux films a reçu la meilleure note de " + P + " ?"));
+        const wrap = mkEl("div", "pairbtns");
+        pr.forEach((f, idx) => {
+          const b = mkEl("button", "ghost pairbtn"); b.type = "button";
+          const im = imgOf(f[0], f[1], 92); if (im) b.appendChild(im);
+          b.append(mkEl("b", "", f[0]), mkEl("span", "", String(f[1])));
+          b.addEventListener("click", () => {
+            const other = pr[1 - idx], ok = f[2] > other[2];
+            wrap.querySelectorAll("button").forEach((y) => { y.disabled = true; });
+            done(ok ? 2 : 0, (ok ? "Bien vu" : "Raté") + " : " + P + " a mis " + star(pr[0][2]) + " à « " + pr[0][0] + " » et " + star(pr[1][2]) + " à « " + pr[1][0] + " ».",
+              pr[0][0] + " (" + star(pr[0][2]) + ") contre " + pr[1][0] + " (" + star(pr[1][2]) + ") : " + (ok ? "trouvé" : "raté"));
+          });
+          wrap.appendChild(b);
+        });
+        bx.appendChild(wrap);
+      });
+    };
+
+    GAMES[2].make = (n) => shuffle(both).slice(0, n).map((f) => (bx, done) => {
+      const real = theirs.get(fk(f))[2], truth = real > f[2] ? "plus" : real < f[2] ? "moins" : "pareil";
+      const row = mkEl("div", "guessrow"), im = imgOf(f[0], f[1]); if (im) row.appendChild(im);
+      const tx = mkEl("div"); tx.append(mkEl("b", "", f[0] + " (" + f[1] + ")"), mkEl("span", "", "Ta note : " + star(f[2]) + ". Celle de " + P + " est…"));
+      row.appendChild(tx); bx.appendChild(row);
+      const bt = mkEl("div", "guessbtns");
+      [["plus", "Plus haute"], ["pareil", "Identique"], ["moins", "Plus basse"]].forEach((o) => {
+        const b = mkEl("button", "ghost small", o[1]); b.type = "button";
+        b.addEventListener("click", () => {
+          const ok = o[0] === truth; bt.querySelectorAll("button").forEach((y) => { y.disabled = true; });
+          done(ok ? (truth === "pareil" ? 3 : 2) : 0, (ok ? "Bien vu" : "Raté") + " : " + P + " a mis " + star(real) + (truth === "pareil" ? ", la même note que toi." : truth === "plus" ? ", plus que toi." : ", moins que toi."),
+            f[0] + " : " + star(f[2]) + " pour toi, " + star(real) + " pour " + P + " : " + (ok ? "trouvé" : "raté"));
+        });
+        bt.appendChild(b);
+      });
+      bx.appendChild(bt);
+    });
+
+    GAMES.forEach((g) => {
+      const card = mkEl("div", "gamecard" + (g.need ? "" : " off"));
+      card.appendChild(mkEl("b", "", g.name)); card.appendChild(mkEl("span", "", g.desc));
+      const b5 = getBest(g.id, 5), b10 = getBest(g.id, 10);
+      if (g.need && (b5 || b10)) card.appendChild(mkEl("em", "", "Records : " + (b5 ? b5 + " / " + 5 * g.maxPer + " sur 5" : "") + (b5 && b10 ? " · " : "") + (b10 ? b10 + " / " + 10 * g.maxPer + " sur 10" : "")));
+      if (g.need) { const b = mkEl("button", "small", "Jouer"); b.type = "button"; b.addEventListener("click", () => run(g, +nsel.value)); card.appendChild(b); }
+      else card.appendChild(mkEl("em", "", "Pas assez de données : " + g.why + "."));
+      modes.appendChild(card);
+    });
+    const nrow = mkEl("label", "gamen", "Nombre de manches "); nrow.appendChild(nsel);
+    host.append(head, nrow, modes, stage);
+  }
+  // Nouveau fichier chargé : on efface la dernière comparaison (elle concernait un autre profil)
+  function resetDuel() {
+    if (!$("duelBody")) return;
+    $("duelBody").textContent = ""; $("cardMsg").textContent = "";
+    $("mates").querySelectorAll("button").forEach((b) => b.classList.remove("on"));
+    lastAll = []; $("duelPanel").hidden = true; $("explPanel").hidden = true;
+  }
+  function renderDuelPanel() {
+    $("duelPanel").hidden = !lastAll.length; renderMates();
+  }
+  $("cardDl").addEventListener("click", () => {
+    const c = buildCard(), url = URL.createObjectURL(new Blob([JSON.stringify(c)], { type: "application/json" }));
+    const a = document.createElement("a"); a.href = url; a.download = "carte-cinephile-" + (c.user || "profil").replace(/[^a-z0-9_-]+/gi, "_") + ".json";
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+  });
+  $("cardIn").addEventListener("change", (e) => {
+    const msg = $("cardMsg"); msg.textContent = ""; let bad = 0, last = null, left = e.target.files.length;
+    Array.from(e.target.files).forEach((file) => {
+      if (file.size > 5e6) { bad++; if (!--left) done(); return; }
+      const rd = new FileReader();
+      rd.onload = () => {
+        const c = parseCard(String(rd.result));
+        if (!c) bad++; else {
+          const i = mates.findIndex((m) => m.user === c.user);
+          if (i >= 0) mates[i] = c; else mates.push(c);
+          last = c;
+        }
+        if (!--left) done();
+      };
+      rd.onerror = () => { bad++; if (!--left) done(); };
+      rd.readAsText(file);
+    });
+    function done() {
+      e.target.value = "";
+      renderMates();
+      if (bad) msg.textContent = bad + (bad > 1 ? " fichiers ne sont pas des cartes valides." : " fichier n'est pas une carte valide.") + " Il faut le fichier .json téléchargé depuis ce site.";
+      if (last) { const bs = $("mates").querySelectorAll("button"); if (bs.length) bs[mates.indexOf(last)].click(); }
+    }
+  });
 
   // Courbe lissée passant par des points (interpolation monotone : ne descend jamais sous la base)
   function smoothPath(pts) {

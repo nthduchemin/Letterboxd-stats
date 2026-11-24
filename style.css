@@ -1,13 +1,13 @@
 /* Page en colonne : formulaire étroit, résultats en grille de cartes. */
 :root {
-  --bg: #f3f5f7;
-  --panel: #ffffff;
-  --fg: #14202b;
-  --muted: #5b6b79;
-  --line: #d9e0e6;
-  --accent: #0d8f4f;
-  --accent-fg: #ffffff;
-  --accent2: #2a7fb8;
+  --bg: #111316;
+  --panel: #191c20;
+  --fg: #f2eee7;
+  --muted: #a6a29a;
+  --line: #303238;
+  --accent: #e5b65c;
+  --accent-fg: #171512;
+  --accent2: #d77b68;
   --warn: #b4540a;
   --bar: #e3e9ee;
   --font: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -15,7 +15,7 @@
   --r: 10px; --rs: 6px; --bw: 1px; --bd: var(--line); --link: var(--accent);
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme]), :root[data-theme="slate"] {
+  :root:not([data-theme]) {
     --bg: #14181c; --panel: #1d242b; --fg: #e8edf1; --muted: #94a3b0;
     --line: #2e3842; --accent: #3ccf7e; --accent-fg: #0b1a12; --accent2: #5aaee6;
     --warn: #f0a35e; --bar: #2a343d;
@@ -78,6 +78,9 @@ button.ghost { background: transparent; color: var(--fg); border: 1px solid var(
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .bar { height: 8px; border-radius: 4px; background: var(--bar); overflow: hidden; margin: 14px 0 6px; }
 .bar > div { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+.progress-panel { margin-top:12px; padding:12px 14px; border:1px solid var(--line); border-radius:var(--rs); background:color-mix(in srgb,var(--bg) 55%,var(--panel)); }
+.progress-panel .bar { margin-top:0; }
+.progress-eta { margin-top:5px; color:var(--accent); font-size:.88rem; font-weight:650; font-variant-numeric:tabular-nums; }
 .err { color: var(--warn); font-size: .9rem; margin-top: 10px; }
 .foot { color: var(--muted); font-size: .8rem; }
 
@@ -331,11 +334,16 @@ tr.clickable:hover { background: var(--bg); }
 #lastLikeList figure.clickable:hover b { text-decoration: underline; text-underline-offset: 3px; }
 
 /* Thèmes : seules les variables changent (le slate sans attribut suit l'appareil, clair ou sombre) */
-:root[data-theme="velours"] {
-  --bg: #1a0d10; --panel: #2a1519; --fg: #f3e6d3; --muted: #b89a86; --line: #4a2a31; --bd: #4a2a31;
-  --accent: #d9a441; --accent-fg: #1a0d10; --accent2: #d4606d; --warn: #e8863a; --bar: #3d2228;
-  --r: 6px; --rs: 4px; --bw: 1px; --font: Georgia, "Times New Roman", serif; --font-head: Georgia, "Times New Roman", serif; color-scheme: dark;
+/* Identité Once Upon a Time in the Cinema : western, thriller et rétro-futurisme */
+:root[data-theme="cinematic"] {
+  --bg: #111316; --panel: #1a1d21; --fg: #f2eee7; --muted: #a6a29a;
+  --line: #303238; --bd: #303238; --accent: #e5b65c; --accent-fg: #171512;
+  --accent2: #d77b68; --link: #e5b65c; --warn: #ef9b69; --bar: #2a2e33;
+  --r: 14px; --rs: 9px; --bw: 1px; color-scheme: dark;
 }
+:root[data-theme="cinematic"] body { background-image: radial-gradient(ellipse at 50% -18%, rgba(229,182,92,.12), transparent 42%); }
+:root[data-theme="cinematic"] .panel { box-shadow: 0 14px 42px rgba(0,0,0,.12); }
+
 :root[data-theme="vintage"] {
   --bg: #efe4cc; --panel: #faf3e3; --fg: #1c1a17; --muted: #6f6455; --line: #d3c5a5; --bd: #1c1a17;
   --accent: #d9482b; --accent-fg: #ffffff; --accent2: #2b5a8a; --link: #2b5a8a; --warn: #a8480a; --bar: #e2d5b8;
@@ -346,14 +354,6 @@ tr.clickable:hover { background: var(--bg); }
   --accent: #ff3ea5; --accent-fg: #0e0a1f; --accent2: #35e0ff; --link: #35e0ff; --warn: #ffb347; --bar: #2a2150;
   --r: 14px; --rs: 10px; --bw: 1px; color-scheme: dark;
 }
-:root[data-theme="brutal"] {
-  --bg: #ffffff; --panel: #ffffff; --fg: #000000; --muted: #4d4d4d; --line: #cfcfcf; --bd: #000000;
-  --accent: #ffd800; --accent-fg: #000000; --accent2: #0b3dff; --link: #0b3dff; --warn: #c2410c; --bar: #eeeeee;
-  --r: 0px; --rs: 0px; --bw: 2px; --font: ui-monospace, "SF Mono", Menlo, Consolas, monospace; --font-head: ui-monospace, "SF Mono", Menlo, Consolas, monospace; color-scheme: light;
-}
-:root[data-theme="brutal"] .rank .track { border: 1px solid #000; }
-:root[data-theme="brutal"] button:not(.theme-opt) { border: 2px solid #000; }
-:root[data-theme="brutal"] :focus-visible { outline-color: #000; }
 :root[data-theme="sauge"] {
   --bg: #e9efe6; --panel: #fbfdf9; --fg: #1d2b24; --muted: #5d6f65; --line: #cdd9ca; --bd: #cdd9ca;
   --accent: #2f6b4f; --accent-fg: #ffffff; --accent2: #c47a2a; --warn: #b4540a; --bar: #dbe5d8;
@@ -383,3 +383,168 @@ tr.clickable:hover { background: var(--bg); }
 .tmdblogo img { display: block; height: 14px; width: auto; }
 .tmdblogo .tmdbtxt { display: none; font-weight: 700; }
 .tmdblogo.nologo .tmdbtxt { display: inline; }
+
+
+/* =========================================================
+   ONCE UPON A TIME IN THE CINEMA — identité, accueil et micro-interactions
+   ========================================================= */
+html { scroll-behavior: smooth; }
+body { padding-top: 24px; }
+main { max-width: 1120px; gap: 28px; }
+.brandbar { display:flex; align-items:center; justify-content:space-between; gap:16px; padding: 4px 2px 20px; border-bottom:1px solid var(--line); }
+.brand { display:inline-flex; align-items:center; gap:11px; color:var(--fg); text-decoration:none; }
+.brand-mark { width:54px; height:54px; flex:0 0 54px; display:grid; place-items:center; color:var(--accent); filter:drop-shadow(0 0 12px color-mix(in srgb,var(--accent) 20%,transparent)); }
+.brand-mark img { width:100%; height:100%; display:block; object-fit:cover; border-radius:50%; border:1px solid color-mix(in srgb,var(--accent) 55%,transparent); box-shadow:0 0 18px color-mix(in srgb,var(--accent) 16%,transparent); }
+.brand-mark .mark-frame { fill:var(--panel); stroke:var(--accent); stroke-width:1.6; }
+.brand-mark .mark-sun { fill:url(#brandSun); stroke:none; }
+.brand-mark .mark-horizon { fill:none; stroke:var(--fg); stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+.brand-mark .mark-tower { fill:none; stroke:var(--fg); stroke-width:1.5; stroke-linecap:round; }
+.brand-mark .mark-bolt { fill:var(--accent2); stroke:var(--panel); stroke-width:.8; stroke-linejoin:round; }
+.brand-mark .mark-clock { fill:var(--panel); stroke:var(--fg); stroke-width:1.2; }
+.brand-mark .mark-clockhands { fill:none; stroke:var(--fg); stroke-width:1.1; stroke-linecap:round; }
+.brand-name { display:grid; max-width:360px; font:800 clamp(.95rem,2vw,1.35rem)/1.05 Georgia, "Times New Roman", serif; letter-spacing:-.045em; }
+.brand-name > span { display:inline; color:var(--accent); }
+.brand-name small { margin-top:6px; color:var(--muted); font:600 .52rem/1 var(--font); letter-spacing:.19em; }
+.brand-note { display:flex; align-items:center; gap:9px; color:var(--muted); font-size:.67rem; font-weight:700; letter-spacing:.16em; }
+.brand-note i,.eyebrow span { width:7px; height:7px; border-radius:50%; background:var(--accent); box-shadow:0 0 14px color-mix(in srgb,var(--accent) 70%,transparent); }
+.intro { position:relative; max-width:850px; padding:38px 0 28px; }
+.eyebrow { display:flex; align-items:center; gap:10px; margin:0 0 20px; color:var(--accent); font-size:.7rem; font-weight:700; letter-spacing:.2em; }
+.intro h1 { max-width:800px; margin:0 0 18px; font:600 clamp(2.7rem,7vw,5.5rem)/.99 var(--font-head); letter-spacing:-.065em; }
+.intro h1 em { color:var(--accent); font-style:normal; }
+.intro > .lead { max-width:680px; font-size:1.04rem; line-height:1.75; }
+.intro-meta { display:flex; flex-wrap:wrap; gap:12px 28px; margin-top:28px; color:var(--muted); font-size:.65rem; font-weight:700; letter-spacing:.14em; }
+.intro-meta span { position:relative; }
+.intro-meta span:not(:last-child)::after { content:"/"; position:absolute; right:-17px; color:var(--accent2); }
+.privacy-note { display:flex; align-items:center; gap:9px; margin-top:22px; color:var(--muted); font-size:.78rem; }
+.privacy-note span { color:var(--accent); font-size:1rem; }
+.step-kicker { margin:0 0 5px; color:var(--accent); font-size:.65rem; font-weight:800; letter-spacing:.18em; }
+.panel { transition: border-color .25s ease, transform .25s ease, box-shadow .25s ease; }
+.panel:hover { border-color:color-mix(in srgb,var(--accent) 38%,var(--line)); }
+.drop { min-height:132px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px; border-radius:10px; }
+.drop::before { content:"↑"; display:grid; place-items:center; width:34px; height:34px; border:1px solid var(--line); border-radius:50%; color:var(--accent); font-size:1.25rem; }
+button { transition:transform .2s ease, filter .2s ease, box-shadow .2s ease; }
+button:not(:disabled):hover { transform:translateY(-2px); filter:brightness(1.08); box-shadow:0 8px 22px color-mix(in srgb,var(--accent) 18%,transparent); }
+button:active { transform:translateY(0) scale(.98); }
+#go { min-width:150px; }
+.guide { transition:background .2s ease,border-color .2s ease; }
+.guide[open] { border-color:color-mix(in srgb,var(--accent) 45%,var(--line)); }
+/* Apparition cinématographique progressive des blocs */
+.js-motion .panel.motion-ready { opacity:0; transform:translateY(22px); transition:opacity .7s ease, transform .7s cubic-bezier(.2,.7,.2,1); }
+.js-motion .panel.motion-ready.is-visible { opacity:1; transform:translateY(0); }
+.intro > * { animation: intro-rise .8s both; }
+.intro > *:nth-child(2) { animation-delay:.08s; }
+.intro > *:nth-child(3) { animation-delay:.16s; }
+.intro > *:nth-child(4) { animation-delay:.24s; }
+.intro > *:nth-child(5) { animation-delay:.32s; }
+@keyframes intro-rise { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+@media (max-width:600px) {
+  body { padding-top:14px; }
+  main { gap:20px; }
+  .brandbar { padding-bottom:14px; }
+  .brand-note { font-size:.55rem; letter-spacing:.1em; }
+  .brand-mark { width:44px; height:44px; flex-basis:44px; }
+  .brand-name { max-width:250px; font-size:1rem; }
+  .intro { padding:24px 0 14px; }
+  .intro-meta { gap:9px 20px; font-size:.58rem; }
+  .intro-meta span:not(:last-child)::after { right:-12px; }
+  .privacy-note { align-items:flex-start; }
+}
+@media (prefers-reduced-motion:reduce) {
+  html { scroll-behavior:auto; }
+  *,*::before,*::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
+  .js-motion .panel.motion-ready { opacity:1; transform:none; }
+}
+
+
+/* Logo intégré au bandeau : visuel fourni dans le médaillon rond, texte de marque conservé */
+.brand { display:inline-flex; align-items:center; gap:11px; width:auto; height:auto; flex:0 1 auto; color:var(--fg); text-decoration:none; }
+.brand-mark { width:54px; height:54px; flex:0 0 54px; display:grid; place-items:center; color:var(--accent); filter:drop-shadow(0 0 12px color-mix(in srgb,var(--accent) 20%,transparent)); }
+.brand-mark img { width:100%; height:100%; display:block; object-fit:cover; object-position:center; border-radius:50%; border:1px solid color-mix(in srgb,var(--accent) 55%,transparent); box-shadow:0 0 18px color-mix(in srgb,var(--accent) 16%,transparent); }
+.brand-name { display:grid; max-width:360px; font:800 clamp(.95rem,2vw,1.35rem)/1.05 Georgia, "Times New Roman", serif; letter-spacing:-.045em; }
+.brand-name > span { display:inline; color:var(--accent); }
+.brand-name small { margin-top:6px; color:var(--muted); font:600 .52rem/1 var(--font); letter-spacing:.19em; }
+@media (max-width:600px) {
+  .brand { gap:9px; }
+  .brand-mark { width:44px; height:44px; flex-basis:44px; }
+  .brand-name { max-width:250px; font-size:1rem; }
+  .brandbar { align-items:center; }
+}
+
+/* Médaillon agrandi : l'image entière reste visible, sans découpe */
+.brand-mark {
+  width:68px;
+  height:68px;
+  flex:0 0 68px;
+}
+.brand-mark img {
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  object-position:center;
+  background:#0f0f0f;
+  border-radius:50%;
+}
+@media (max-width:600px) {
+  .brand-mark {
+    width:56px;
+    height:56px;
+    flex-basis:56px;
+  }
+}
+
+/* Explorateur */
+.exctl { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; align-items: end; margin-bottom: 8px; }
+.exctl label { display: grid; gap: 4px; font-size: .8rem; color: var(--muted); }
+.exctl select, .exctl input[type=search] { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; min-width: 0; }
+.exctl .check { margin: 0; }
+#exMore { margin-top: 12px; }
+/* Défi */
+.duelbar { display: flex; flex-wrap: wrap; gap: 10px; margin: 6px 0; }
+.filebtn { display: inline-flex; align-items: center; padding: 0 16px; min-height: 40px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; font-weight: 600; }
+.filebtn:hover { border-color: var(--accent); }
+.mates { margin: 12px 0; }
+.mates button.on { border-color: var(--accent); color: var(--accent); }
+.duelhead { display: flex; align-items: center; gap: 16px; margin: 16px 0 8px; flex-wrap: wrap; }
+.bigscore { font: 700 2.6rem var(--font-head); color: var(--accent); line-height: 1; }
+.duelparts { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 4px; }
+.duelparts em, .duellist em { color: var(--muted); font-style: normal; font-size: .85rem; margin-left: 8px; }
+.duel h4, #duelBody h4 { margin: 18px 0 8px; font-size: 1rem; }
+.round { display: grid; grid-template-columns: 1fr 1.6fr 1fr; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); text-align: center; font-variant-numeric: tabular-nums; }
+.round span { color: var(--muted); font-size: .88rem; }
+.round b { font-weight: 500; } .round b.win { color: var(--accent); font-weight: 700; }
+.duellists { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 0 24px; }
+.duellist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.duellist li { display: flex; flex-direction: column; }
+.duellist a { color: var(--link); }
+.guess { margin-top: 8px; border-top: 1px solid var(--line); }
+.guessrow { display: flex; gap: 14px; align-items: center; margin: 8px 0; }
+.guessrow span { display: block; color: var(--muted); }
+.guessbtns { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.rounds .lead { margin-top: 12px; }
+
+/* Films non trouvés */
+.misslist { list-style: none; padding-left: 0; }
+.missitem { display: grid; gap: 4px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.missitem b { color: var(--fg); font-weight: 600; }
+.misslinks { display: flex; gap: 14px; flex-wrap: wrap; font-size: .85rem; }
+.misslinks a { color: var(--link); }
+.missfix { display: flex; gap: 8px; flex-wrap: wrap; }
+.missfix input { flex: 1 1 220px; min-width: 0; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; }
+.missitem .hint { margin: 0; }
+
+/* Jeux du défi */
+.gamemodes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px; margin: 10px 0; }
+.gamecard { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+.gamecard span { color: var(--muted); font-size: .88rem; flex: 1; }
+.gamecard em { font-style: normal; color: var(--muted); font-size: .8rem; }
+.gamecard.off { opacity: .6; }
+.gamecard button { align-self: flex-start; }
+.gamen { display: inline-flex; gap: 8px; align-items: center; font-size: .85rem; color: var(--muted); }
+.gamen select { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+.gamestage:not(:empty) { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); }
+.gameprog { color: var(--muted); font-size: .85rem; margin: 0 0 8px; }
+.pairbtns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 8px 0; }
+.pairbtn { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px; height: auto; text-align: center; }
+.pairbtn span { color: var(--muted); font-size: .85rem; }
+.gamelog { margin: 8px 0; padding-left: 20px; color: var(--muted); font-size: .88rem; }
+.gameround .hint { margin: 4px 0; }
