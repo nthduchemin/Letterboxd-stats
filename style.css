@@ -308,10 +308,10 @@ tr.clickable:hover { background: var(--bg); }
 
 /* Dernier film liké : affiche à gauche, texte à droite, le tout calé à droite */
 #favLike { display: grid; grid-template-columns: 120px 130px; column-gap: 12px; align-content: start; }
-#favLike h3 { grid-column: 2; grid-row: 1; }
+#favLike h3 { grid-column: 1 / -1; grid-row: 1; }
 #lastLikeList, #lastLikeList figure { display: contents; }
 #lastLikeList img, #lastLikeList .ph { grid-column: 1; grid-row: 2; display: block; width: 120px; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 6px; background: var(--bar); }
-#lastLikeList figcaption { grid-column: 2; grid-row: 2; align-self: start; display: grid; gap: 2px; font-size: .85rem; line-height: 1.3; }
+#lastLikeList figcaption { grid-column: 1; grid-row: 3; margin-top: 6px; align-self: start; display: grid; gap: 2px; font-size: .85rem; line-height: 1.3; }
 #lastLikeList figcaption span { color: var(--muted); font-variant-numeric: tabular-nums; }
 #lastLikeList figure.clickable:hover img { outline: 2px solid var(--accent); outline-offset: 2px; }
 #lastLikeList figure.clickable:hover b { text-decoration: underline; text-underline-offset: 3px; }
@@ -439,9 +439,9 @@ button:active { transform:translateY(0) scale(.98); }
 
 /* Médaillon agrandi : l'image entière reste visible, sans découpe */
 .brand-mark {
-  width:68px;
-  height:68px;
-  flex:0 0 68px;
+  width:112px;
+  height:112px;
+  flex:0 0 112px;
 }
 .brand-mark img {
   width:100%;
@@ -453,9 +453,9 @@ button:active { transform:translateY(0) scale(.98); }
 }
 @media (max-width:600px) {
   .brand-mark {
-    width:56px;
-    height:56px;
-    flex-basis:56px;
+    width:80px;
+    height:80px;
+    flex-basis:80px;
   }
 }
 
