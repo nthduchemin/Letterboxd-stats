@@ -14,20 +14,6 @@
   --font-head: "Space Grotesk", "Inter", system-ui, sans-serif;
   --r: 10px; --rs: 6px; --bw: 1px; --bd: var(--line); --link: var(--accent);
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) {
-    --bg: #14181c; --panel: #1d242b; --fg: #e8edf1; --muted: #94a3b0;
-    --line: #2e3842; --accent: #3ccf7e; --accent-fg: #0b1a12; --accent2: #5aaee6;
-    --warn: #f0a35e; --bar: #2a343d;
-    color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #14181c; --panel: #1d242b; --fg: #e8edf1; --muted: #94a3b0;
-  --line: #2e3842; --accent: #3ccf7e; --accent-fg: #0b1a12; --accent2: #5aaee6;
-  --warn: #f0a35e; --bar: #2a343d;
-  color-scheme: dark;
-}
 
 * { box-sizing: border-box; }
 body {
@@ -82,7 +68,6 @@ button.ghost { background: transparent; color: var(--fg); border: 1px solid var(
 .progress-panel .bar { margin-top:0; }
 .progress-eta { margin-top:5px; color:var(--accent); font-size:.88rem; font-weight:650; font-variant-numeric:tabular-nums; }
 .err { color: var(--warn); font-size: .9rem; margin-top: 10px; }
-.foot { color: var(--muted); font-size: .8rem; }
 
 /* Bloc principal */
 .big { font: 700 clamp(2.6rem, 11vw, 4.4rem)/1 var(--font-head); font-variant-numeric: tabular-nums; }
@@ -135,8 +120,6 @@ button.ghost { background: transparent; color: var(--fg); border: 1px solid var(
 .film img, .film .ph { width: 46px; height: 69px; flex: none; border-radius: 3px; background: var(--bar); object-fit: cover; }
 .film b { display: block; font-size: .9rem; line-height: 1.25; }
 .film span { color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
-
-/* Histogramme des notes */
 
 /* Tables, puces, listes */
 .tablewrap { overflow-x: auto; }
@@ -392,19 +375,6 @@ html { scroll-behavior: smooth; }
 body { padding-top: 24px; }
 main { max-width: 1120px; gap: 28px; }
 .brandbar { display:flex; align-items:center; justify-content:space-between; gap:16px; padding: 4px 2px 20px; border-bottom:1px solid var(--line); }
-.brand { display:inline-flex; align-items:center; gap:11px; color:var(--fg); text-decoration:none; }
-.brand-mark { width:54px; height:54px; flex:0 0 54px; display:grid; place-items:center; color:var(--accent); filter:drop-shadow(0 0 12px color-mix(in srgb,var(--accent) 20%,transparent)); }
-.brand-mark img { width:100%; height:100%; display:block; object-fit:cover; border-radius:50%; border:1px solid color-mix(in srgb,var(--accent) 55%,transparent); box-shadow:0 0 18px color-mix(in srgb,var(--accent) 16%,transparent); }
-.brand-mark .mark-frame { fill:var(--panel); stroke:var(--accent); stroke-width:1.6; }
-.brand-mark .mark-sun { fill:url(#brandSun); stroke:none; }
-.brand-mark .mark-horizon { fill:none; stroke:var(--fg); stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
-.brand-mark .mark-tower { fill:none; stroke:var(--fg); stroke-width:1.5; stroke-linecap:round; }
-.brand-mark .mark-bolt { fill:var(--accent2); stroke:var(--panel); stroke-width:.8; stroke-linejoin:round; }
-.brand-mark .mark-clock { fill:var(--panel); stroke:var(--fg); stroke-width:1.2; }
-.brand-mark .mark-clockhands { fill:none; stroke:var(--fg); stroke-width:1.1; stroke-linecap:round; }
-.brand-name { display:grid; max-width:360px; font:800 clamp(.95rem,2vw,1.35rem)/1.05 Georgia, "Times New Roman", serif; letter-spacing:-.045em; }
-.brand-name > span { display:inline; color:var(--accent); }
-.brand-name small { margin-top:6px; color:var(--muted); font:600 .52rem/1 var(--font); letter-spacing:.19em; }
 .brand-note { display:flex; align-items:center; gap:9px; color:var(--muted); font-size:.67rem; font-weight:700; letter-spacing:.16em; }
 .brand-note i,.eyebrow span { width:7px; height:7px; border-radius:50%; background:var(--accent); box-shadow:0 0 14px color-mix(in srgb,var(--accent) 70%,transparent); }
 .intro { position:relative; max-width:850px; padding:38px 0 28px; }
@@ -442,8 +412,6 @@ button:active { transform:translateY(0) scale(.98); }
   main { gap:20px; }
   .brandbar { padding-bottom:14px; }
   .brand-note { font-size:.55rem; letter-spacing:.1em; }
-  .brand-mark { width:44px; height:44px; flex-basis:44px; }
-  .brand-name { max-width:250px; font-size:1rem; }
   .intro { padding:24px 0 14px; }
   .intro-meta { gap:9px 20px; font-size:.58rem; }
   .intro-meta span:not(:last-child)::after { right:-12px; }
@@ -465,7 +433,6 @@ button:active { transform:translateY(0) scale(.98); }
 .brand-name small { margin-top:6px; color:var(--muted); font:600 .52rem/1 var(--font); letter-spacing:.19em; }
 @media (max-width:600px) {
   .brand { gap:9px; }
-  .brand-mark { width:44px; height:44px; flex-basis:44px; }
   .brand-name { max-width:250px; font-size:1rem; }
   .brandbar { align-items:center; }
 }

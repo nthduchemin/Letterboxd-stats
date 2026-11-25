@@ -111,11 +111,20 @@
     update();
   }
 
+  // Chargement à la demande des fichiers lourds (carte du monde, lecteur de ZIP) : la page d'accueil reste légère
+  const scripts = {};
+  function loadScript(src) {
+    if (!scripts[src]) scripts[src] = new Promise((ok, ko) => {
+      const e = document.createElement("script"); e.src = src; e.onload = ok; e.onerror = () => { delete scripts[src]; ko(new Error(src)); };
+      document.head.appendChild(e);
+    });
+    return scripts[src];
+  }
   function setFile(file) {
     $("err").hidden = true;
     if (/\.zip$/i.test(file.name)) {
-      if (!window.JSZip) { showErr("Le lecteur de ZIP n'a pas pu se charger. Dépose plutôt watched.csv."); return; }
-      JSZip.loadAsync(file).then((zip) => {
+      (window.JSZip ? Promise.resolve() : loadScript("jszip.min.js")).then(() => JSZip.loadAsync(file), () => { showErr("Le lecteur de ZIP n'a pas pu se charger. Dépose plutôt watched.csv."); return null; }).then((zip) => {
+        if (!zip) return;
         const get = (p) => { const f = zip.file(p); return f ? f.async("string") : Promise.resolve(""); };
         if (!zip.file("watched.csv")) { showErr("watched.csv est introuvable dans ce ZIP."); return; }
         return Promise.all([get("watched.csv"), get("diary.csv"), get("ratings.csv"), get("likes/films.csv"), get("profile.csv"), get("watchlist.csv")])
@@ -422,7 +431,7 @@
     personInfo(id).then((p) => {
       if (p.img) {
         const im = document.createElement("img");
-        im.src = IMG + "w185" + p.img; im.alt = ""; im.width = 64; im.height = 96;
+        im.src = IMG + "w185" + p.img; im.alt = ""; im.width = 64; im.height = 96; im.loading = "lazy";
         box.replaceChild(im, ph);
       }
       const line = (t) => { const s = document.createElement("span"); s.textContent = t; tx.appendChild(s); };
@@ -504,7 +513,7 @@
     const fill = () => {
       if (item.p && !box.querySelector("img")) {
         const im = document.createElement("img");
-        im.src = IMG + (big ? "w342" : "w185") + item.p; im.alt = ""; im.width = big ? 150 : 92; im.height = big ? 225 : 138;
+        im.src = IMG + (big ? "w342" : "w185") + item.p; im.alt = ""; im.width = big ? 150 : 92; im.height = big ? 225 : 138; im.loading = "lazy";
         box.replaceChild(im, ph);
       }
       tx.textContent = "";
@@ -606,8 +615,10 @@
   document.body.appendChild(mapTip);
 
   function renderMap(ctry, total, cname) {
-    const M = window.WORLD_MAP, panel = $("mapPanel");
-    if (!M || !ctry.length) { panel.hidden = true; return; }
+    const panel = $("mapPanel");
+    if (!ctry.length) { panel.hidden = true; return; }
+    if (!window.WORLD_MAP) { loadScript("worldmap.js").then(() => renderMap(ctry, total, cname), () => { panel.hidden = true; }); return; }
+    const M = window.WORLD_MAP;
     panel.hidden = false;
     const byCode = new Map(); ctry.forEach((g) => byCode.set(g.k, g));
     // Niveaux selon la part du total de films de la personne : jusqu'à 2 % très peu, 5 % quelques films, 15 % pas mal, au-delà beaucoup
@@ -895,7 +906,6 @@
   }
 
   const DAYS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
-  const nf2 = (x) => x.toFixed(2).replace(".", ",");
   const isIso = (t) => /^\d{4}-\d{2}-\d{2}$/.test(t || "");
   const isoOf = (d) => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   const longDate = (d) => d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
@@ -1391,7 +1401,7 @@
     const imgOf = (name, year, w) => {
       const x = info.get(name + "|" + year);
       if (!x || !x.p) return null;
-      const im = document.createElement("img"); im.src = IMG + "w185" + x.p; im.alt = ""; im.width = w || 69; im.height = Math.round((w || 69) * 1.5); return im;
+      const im = document.createElement("img"); im.src = IMG + "w185" + x.p; im.alt = ""; im.width = w || 69; im.height = Math.round((w || 69) * 1.5); im.loading = "lazy"; return im;
     };
     const bestKey = (id, n) => "lb-best|" + id + "|" + P + "|" + n;
     const getBest = (id, n) => { try { return +localStorage.getItem(bestKey(id, n)) || 0; } catch (e) { return 0; } };
