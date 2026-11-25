@@ -4,6 +4,14 @@
   // Les affiches ne se « glissent » plus : plus de fantôme d'image au clic
   document.addEventListener("dragstart", (e) => { if (e.target && e.target.tagName === "IMG") e.preventDefault(); });
 
+  // Logo TMDB : s'il manque, on affiche le mot « TMDB » (pas de gestionnaire en ligne, compatible avec la politique de sécurité)
+  (function () {
+    const im = document.querySelector(".tmdblogo img");
+    if (!im) return;
+    const miss = () => { im.parentNode.classList.add("nologo"); im.remove(); };
+    if (im.complete && im.naturalWidth === 0) miss(); else im.addEventListener("error", miss);
+  })();
+
   let films = [];        // {name, year}
   let rewatches = [];    // {name, year}, lignes "Rewatch" du journal
   let ratings = null;    // Map "nom|année" -> note, ou null sans ratings.csv

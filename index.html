@@ -2,6 +2,8 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'sha256-FjiDGTJCJFltxvPZnvFHkrNAEXhcYemTXssx4KjsZyk='; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://image.tmdb.org; connect-src https://api.themoviedb.org; font-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#111316">
 <title>Once Upon a Time in the Cinema — Ton histoire de cinéma</title>
@@ -280,7 +282,7 @@
 
   <footer class="about narrow" id="about">
     <h2>À propos et crédits</h2>
-    <a class="tmdblogo" href="https://www.themoviedb.org/" target="_blank" rel="noopener noreferrer"><img src="tmdb-logo.svg" alt="TMDB" height="14" onerror="this.parentNode.classList.add('nologo');this.remove()"><span class="tmdbtxt">TMDB</span></a>
+    <a class="tmdblogo" href="https://www.themoviedb.org/" target="_blank" rel="noopener noreferrer"><img src="tmdb-logo.svg" alt="TMDB" height="14"><span class="tmdbtxt">TMDB</span></a>
     <p>This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
     <p>Ce produit utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB. Les données de films, les affiches et les photos viennent de <a href="https://www.themoviedb.org/" target="_blank" rel="noopener noreferrer">TMDB</a>. Ce site n'est pas non plus affilié à Letterboxd.</p>
     <p>Projet personnel, sans but lucratif. Tes fichiers Letterboxd restent dans ton navigateur et ta clé TMDB n'est envoyée qu'à TMDB. Les données TMDB gardées dans ton navigateur sont effacées au bout de 6 mois.</p>
@@ -294,7 +296,7 @@
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="jszip.min.js"></script>
 <script src="worldmap.js"></script>
 <script src="corrections.js"></script>
 <script src="script.js"></script>
