@@ -464,7 +464,7 @@
       const nm = document.createElement("b"); nm.textContent = m.name;
       const sub = document.createElement("span");
       const role = o.roleOf ? o.roleOf(m) : "";
-      sub.textContent = m.year + (m.r != null ? " · ta note " + nf1(m.r) + " ★" : "") + (role ? " · " + role : "");
+      sub.textContent = m.year + (o.dur && m.rt ? " · " + fmtDur(m.rt) : "") + (m.r != null ? " · ta note " + nf1(m.r) + " ★" : "") + (role ? " · " + role : "");
       tx.append(nm, sub); row.appendChild(tx); box.appendChild(row);
       clickable(row, m);
     });
@@ -1165,7 +1165,7 @@
   /* ---------- Explorateur : filtres combinables sur tous tes films ---------- */
   const mkEl = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
   let lastAll = [], exLimit = 15;
-  const EX_IDS = ["exGenre", "exCountry", "exDec", "exLang", "exMin", "exMax", "exLike", "exQ", "exSort"];
+  const EX_IDS = ["exGenre", "exCountry", "exDec", "exLang", "exMin", "exMax", "exDurMin", "exDurMax", "exLike", "exQ", "exSort"];
   const normCode = (c) => (c === "SU" ? "RU" : c);
   function renderExplorer(all) {
     lastAll = all;
@@ -1182,16 +1182,21 @@
     fill("exDec", "Toutes les époques", group(all, (x) => [Math.floor(x.year / 10) * 10]).sort((a, b) => b.k - a.k).map((g) => [g.k, g.k + "s (" + g.n + ")"]));
     const stars = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].map((v) => [v, nf1(v) + " ★"]);
     fill("exMin", "Note min", stars); fill("exMax", "Note max", stars);
+    const hm = (m) => (m < 60 ? m + " min" : Math.floor(m / 60) + " h" + (m % 60 ? " " + String(m % 60).padStart(2, "0") : ""));
+    const durs = [60, 75, 90, 105, 120, 135, 150, 165, 180, 210, 240].map((m) => [m, hm(m)]);
+    fill("exDurMin", "Durée min", durs); fill("exDurMax", "Durée max", durs);
     runExplorer(true);
   }
   function runExplorer(reset) {
     if (reset) exLimit = 15;
     const v = (id) => $(id).value, g = v("exGenre"), c = v("exCountry"), d = v("exDec"), lg = v("exLang"), q = (v("exQ") || "").trim().toLowerCase();
     const mn = v("exMin") === "" ? null : +v("exMin"), mx = v("exMax") === "" ? null : +v("exMax");
+    const dmn = v("exDurMin") === "" ? null : +v("exDurMin"), dmx = v("exDurMax") === "" ? null : +v("exDurMax");
     const list = lastAll.filter((x) =>
       (!g || (x.g || []).indexOf(g) >= 0) && (!c || (x.c || []).map(normCode).indexOf(c) >= 0) && (!d || Math.floor(x.year / 10) * 10 === +d)
       && (!lg || (lg === "vo" ? x.l && x.l !== "en" : x.l === "en"))
       && (mn == null || (x.r != null && x.r >= mn)) && (mx == null || (x.r != null && x.r <= mx))
+      && (dmn == null || (x.rt > 0 && x.rt >= dmn)) && (dmx == null || (x.rt > 0 && x.rt <= dmx))
       && (!$("exLike").checked || x.liked) && (!q || x.name.toLowerCase().indexOf(q) >= 0));
     const sorts = {
       note: (a, b) => (b.r == null ? -1 : b.r) - (a.r == null ? -1 : a.r) || b.v - a.v,
@@ -1207,7 +1212,7 @@
         + (pub.length ? " · moyenne TMDB " + nf1(mean(pub.map((x) => x.v / 2))) + " ★" : "")
       : "Aucun film ne correspond à ces filtres.";
     const box = $("exList"); box.textContent = "";
-    if (list.length) box.appendChild(filmsList(list, { limit: exLimit, sort: "none" }));
+    if (list.length) box.appendChild(filmsList(list, { limit: exLimit, sort: "none", dur: true }));
     $("exMore").hidden = list.length <= exLimit;
     $("exMore").textContent = "Afficher plus (" + Math.min(15, list.length - exLimit) + " de plus sur " + (list.length - exLimit) + ")";
   }
