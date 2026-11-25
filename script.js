@@ -849,26 +849,42 @@
     Promise.all([1, 2, 3, 4].map(worker)).then(() => {
       if (tok !== collToken) return;
       try { localStorage.setItem("lb-coll-v1", JSON.stringify(collCache)); } catch (e) {}
-      const today = isoOf(new Date());
-      const rows = ids.filter((id) => collCache[id]).map((id) => {
-        const items = by.get(id), c = collCache[id], mine = new Set(items.map((x) => x.i));
-        const parts = c.p.filter((p) => p[1] && p[1] <= today);
-        const total = Math.max(parts.length, 1), seen = Math.min(parts.filter((p) => mine.has(p[0])).length, total);
-        const missing = parts.filter((p) => !mine.has(p[0])).sort((a, b) => a[1].localeCompare(b[1])).map((p) => p[2]);
-        return { id: id, label: c.n || items[0].cn || "Saga", items: items, seen: seen, total: total, missing: missing, done: seen >= total };
-      }).filter((r) => r.total >= 2)
-        .sort((a, b) => b.seen - a.seen || b.seen / b.total - a.seen / a.total || b.total - a.total || a.label.localeCompare(b.label))
-        .slice(0, 30);
-      const nDone = rows.filter((r) => r.done).length;
-      $("collNote").textContent = rows.length ? rows.length + " sagas affichées, dont " + nDone + (nDone > 1 ? " complètes." : " complète.") : "";
-      const cr = rows.map((r) => ({
-        label: r.label, items: r.items, full: true, missing: r.missing,
-        value: r.seen + " / " + r.total + " films" + (r.done ? " · complète ✓" : ""), frac: r.seen / r.total
-      }));
-      rank("coll", cr.slice(0, 15), 0, "Impossible de charger les sagas pour le moment.");   // les 15 premières à gauche
-      if (cr.length > 15) rank("coll2", cr.slice(15)); else $("coll2").textContent = "";     // les 15 suivantes à droite
+      collState = { by: by, ids: ids }; collShown = 30;
+      drawCollections();
     });
   }
+
+  // Affichage des sagas : au moins 3 films dans la saga dont au moins 2 vus ; option « films à venir » ; 30 par page
+  let collState = null, collShown = 30;
+  function drawCollections() {
+    if (!collState) return;
+    const by = collState.by, future = $("collFuture").checked, today = isoOf(new Date());
+    const rows = collState.ids.filter((id) => collCache[id]).map((id) => {
+      const items = by.get(id), c = collCache[id], mine = new Set(items.map((x) => x.i));
+      // Films sortis ; avec l'option, aussi ceux déjà annoncés sur TMDB avec une date de sortie future
+      const parts = c.p.filter((p) => p[1] && (future || p[1] <= today));
+      const seen = parts.filter((p) => mine.has(p[0])).length, upcoming = parts.filter((p) => p[1] > today).length;
+      const missing = parts.filter((p) => !mine.has(p[0])).sort((a, b) => a[1].localeCompare(b[1]))
+        .map((p) => (p[1] > today ? p[2] + " (à venir, " + p[1].slice(0, 4) + ")" : p[2]));
+      return { id: id, label: c.n || items[0].cn || "Saga", items: items, seen: seen, total: parts.length, upcoming: upcoming, missing: missing, done: parts.length > 0 && seen >= parts.length };
+    }).filter((r) => r.total >= 3 && r.seen >= 2)
+      .sort((a, b) => b.seen - a.seen || b.seen / b.total - a.seen / a.total || b.total - a.total || a.label.localeCompare(b.label));
+    const shown = rows.slice(0, collShown), nDone = shown.filter((r) => r.done).length;
+    $("collNote").textContent = shown.length
+      ? shown.length + (shown.length > 1 ? " sagas affichées" : " saga affichée") + (rows.length > shown.length ? " sur " + rows.length : "") + ", dont " + nDone + (nDone > 1 ? " complètes." : " complète.")
+      : "";
+    $("collMore").hidden = rows.length <= shown.length;
+    $("collMore").textContent = "Afficher plus de sagas (" + Math.min(30, rows.length - shown.length) + " de plus sur " + (rows.length - shown.length) + " restantes)";
+    const cr = shown.map((r) => ({
+      label: r.label, items: r.items, full: true, missing: r.missing,
+      value: r.seen + " / " + r.total + " films" + (r.upcoming ? " (dont " + r.upcoming + " à venir)" : "") + (r.done ? " · complète ✓" : ""), frac: r.seen / r.total
+    }));
+    const half = Math.ceil(cr.length / 2);   // première moitié à gauche, seconde à droite
+    rank("coll", cr.slice(0, half), 0, "Aucune saga ne correspond (il faut au moins 3 films dans la saga, dont 2 vus).");
+    if (cr.length > 1) rank("coll2", cr.slice(half)); else $("coll2").textContent = "";
+  }
+  $("collFuture").addEventListener("change", () => { collShown = 30; drawCollections(); });
+  $("collMore").addEventListener("click", () => { collShown += 30; drawCollections(); });
 
   // Top 4 de la personne : liens du profil retrouvés dans la liste des films vus (même lien Letterboxd), affiches TMDB
   function posterFig(x, extra) {

@@ -211,7 +211,12 @@
         <h2>Tes 5 tags les plus utilisés</h2>
         <ol class="rank" id="tags"></ol>
       </section>
-      <section class="panel wide" id="collPanel" hidden><h2>Sagas et franchises</h2><div class="collcols"><ol class="rank" id="coll"></ol><ol class="rank" id="coll2"></ol></div><p class="hint" id="collNote"></p><p class="hint">Collections TMDB dont tu as vu au moins 2 films, classées par nombre de films vus (30 au maximum). Seuls les films déjà sortis comptent.</p></section>
+      <section class="panel wide" id="collPanel" hidden><h2>Sagas et franchises</h2>
+        <div class="check"><input type="checkbox" id="collFuture"><label for="collFuture">Compter aussi les films pas encore sortis</label></div>
+        <div class="collcols"><ol class="rank" id="coll"></ol><ol class="rank" id="coll2"></ol></div>
+        <button type="button" class="ghost small" id="collMore" hidden>Afficher plus de sagas</button>
+        <p class="hint" id="collNote"></p>
+        <p class="hint">Collections TMDB avec au moins 3 films, dont au moins 2 que tu as vus, classées par nombre de films vus (30 à la fois). Par défaut seuls les films déjà sortis comptent. L'option ajoute les films à venir déjà annoncés sur TMDB avec une date de sortie ; ceux sans date ne sont pas comptés.</p></section>
       <section class="panel wide" id="rePanel" hidden><h2>Les films les plus revus</h2><ol class="rank" id="reTop"></ol><p class="hint">Films revus au moins 2 fois.</p></section>
     </div>
 
