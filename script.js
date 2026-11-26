@@ -447,7 +447,7 @@
   }
 
   function filmsList(items, o) {
-    const box = document.createElement("div"); box.className = "films";
+    const box = document.createElement("div"); box.className = "films" + (o.dur ? " cards" : "");
     // o.sort "pop" : les plus populaires d'abord (nombre de votes TMDB) ; sinon les mieux notés par toi d'abord
     let list = o.sort === "none" ? items.slice() : items.slice().sort(o.sort === "pop"
       ? (a, b) => b.n - a.n || b.v - a.v || a.year - b.year
@@ -457,7 +457,7 @@
       const row = document.createElement("div"); row.className = "film";
       if (m.p) {
         const im = document.createElement("img");
-        im.src = IMG + "w92" + m.p; im.alt = ""; im.width = 46; im.height = 69; im.loading = "lazy";
+        im.src = IMG + (o.dur ? "w154" : "w92") + m.p; im.alt = ""; im.width = 46; im.height = 69; im.loading = "lazy";
         row.appendChild(im);
       } else { const ph = document.createElement("span"); ph.className = "ph"; row.appendChild(ph); }
       const tx = document.createElement("div");
@@ -874,7 +874,7 @@
       ? shown.length + (shown.length > 1 ? " sagas affichées" : " saga affichée") + (rows.length > shown.length ? " sur " + rows.length : "") + ", dont " + nDone + (nDone > 1 ? " complètes." : " complète.")
       : "";
     $("collMore").hidden = rows.length <= shown.length;
-    $("collMore").textContent = "Afficher plus de sagas (" + Math.min(30, rows.length - shown.length) + " de plus sur " + (rows.length - shown.length) + " restantes)";
+    setPill($("collMore"), "Afficher plus de sagas", { icon: "+", badge: (rows.length - shown.length) + " restantes", chev: "down" });
     const cr = shown.map((r) => ({
       label: r.label, items: r.items, full: true, missing: r.missing,
       value: r.seen + " / " + r.total + " films" + (r.upcoming ? " (dont " + r.upcoming + " à venir)" : "") + (r.done ? " · complète ✓" : ""), frac: r.seen / r.total
@@ -1180,6 +1180,16 @@
 
   /* ---------- Explorateur : filtres combinables sur tous tes films ---------- */
   const mkEl = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+  // Bouton « pilule » : icône, libellé, pastille (compteur) et chevron
+  function setPill(btn, label, o) {
+    o = o || {}; btn.textContent = ""; btn.classList.add("pillbtn");
+    if (o.icon) btn.appendChild(mkEl("span", "pi", o.icon));
+    btn.appendChild(mkEl("span", "pl", label));
+    if (o.badge) btn.appendChild(mkEl("span", "pb", o.badge));
+    if (o.chev) btn.appendChild(mkEl("span", "pc " + o.chev));
+    return btn;
+  }
+  const pillBtn = (label, o) => { const b = mkEl("button"); b.type = "button"; return setPill(b, label, o); };
   let lastAll = [], exLimit = 15;
   const EX_IDS = ["exGenre", "exCountry", "exDec", "exLang", "exMin", "exMax", "exDurMin", "exDurMax", "exLike", "exQ", "exSort"];
   const normCode = (c) => (c === "SU" ? "RU" : c);
@@ -1230,7 +1240,7 @@
     const box = $("exList"); box.textContent = "";
     if (list.length) box.appendChild(filmsList(list, { limit: exLimit, sort: "none", dur: true }));
     $("exMore").hidden = list.length <= exLimit;
-    $("exMore").textContent = "Afficher plus (" + Math.min(15, list.length - exLimit) + " de plus sur " + (list.length - exLimit) + ")";
+    setPill($("exMore"), "Afficher plus", { icon: "+", badge: (list.length - exLimit) + " restants", chev: "down" });
   }
   EX_IDS.forEach((id) => $(id).addEventListener("input", () => runExplorer(true)));
   $("exMore").addEventListener("click", () => { exLimit += 15; runExplorer(false); });
@@ -1456,7 +1466,7 @@
           if (pts >= g.goodAt) { streak++; if (streak >= 3) bonus = 1; } else streak = 0;
           score += pts + bonus; log.push(line + " (" + (pts + bonus >= 0 ? "+" : "") + (pts + bonus) + (bonus ? ", dont 1 de bonus série" : "") + ")");
           bx.appendChild(mkEl("p", "lead small", msg + (bonus ? " Série de " + streak + " bonnes manches : +1 point de bonus !" : "")));
-          const nx = mkEl("button", "", i + 1 < rounds.length ? "Manche suivante" : "Voir mon score"); nx.type = "button";
+          const nx = pillBtn(i + 1 < rounds.length ? "Manche suivante" : "Voir mon score", { chev: "right" });
           nx.addEventListener("click", () => { i++; step(); }); bx.appendChild(nx); nx.focus();
         });
       };
@@ -1467,8 +1477,8 @@
         if (score > prev) { setBest(g.id, rounds.length, score); stage.appendChild(mkEl("p", "lead small", prev ? "Nouveau record ! (ancien : " + prev + ")" : "Premier score enregistré dans ce navigateur.")); }
         else stage.appendChild(mkEl("p", "hint", "Ton record sur " + rounds.length + " manches : " + prev + "."));
         const ul = mkEl("ul", "gamelog"); log.forEach((t) => ul.appendChild(mkEl("li", "", t))); stage.appendChild(ul);
-        const again = mkEl("button", "", "Rejouer"); again.type = "button"; again.addEventListener("click", () => run(g, n));
-        const back = mkEl("button", "ghost", "Changer de jeu"); back.type = "button"; back.addEventListener("click", () => { stage.textContent = ""; });
+        const again = pillBtn("Rejouer", { icon: "↻" }); again.addEventListener("click", () => run(g, n));
+        const back = pillBtn("Changer de jeu"); back.addEventListener("click", () => { stage.textContent = ""; });
         const bar = mkEl("div", "duelbar"); bar.append(again, back); stage.appendChild(bar);
       };
       step();
@@ -1550,7 +1560,7 @@
       card.appendChild(mkEl("b", "", g.name)); card.appendChild(mkEl("span", "", g.desc));
       const b5 = getBest(g.id, 5), b10 = getBest(g.id, 10);
       if (g.need && (b5 || b10)) card.appendChild(mkEl("em", "", "Records : " + (b5 ? b5 + " / " + 5 * g.maxPer + " sur 5" : "") + (b5 && b10 ? " · " : "") + (b10 ? b10 + " / " + 10 * g.maxPer + " sur 10" : "")));
-      if (g.need) { const b = mkEl("button", "small", "Jouer"); b.type = "button"; b.addEventListener("click", () => run(g, +nsel.value)); card.appendChild(b); }
+      if (g.need) { const b = pillBtn("Jouer", { icon: "▶" }); b.addEventListener("click", () => run(g, +nsel.value)); card.appendChild(b); }
       else card.appendChild(mkEl("em", "", "Pas assez de données : " + g.why + "."));
       modes.appendChild(card);
     });

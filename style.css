@@ -210,8 +210,6 @@ tr.clickable:hover { background: var(--bg); }
 .warn { margin-top: 10px; color: var(--warn); font-size: .9rem; }
 .yearhead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
 .yearhead h2 { margin-bottom: 6px; }
-.yearpick { display: flex; align-items: center; gap: 8px; font-size: .85rem; font-weight: 400; color: var(--muted); margin: 0; }
-.yearpick select { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; }
 #yearPanel .check { margin: 4px 0 10px; }
 
 /* Courbe des notes */
@@ -506,8 +504,6 @@ button:active { transform:translateY(0) scale(.98); }
 .gamecard em { font-style: normal; color: var(--muted); font-size: .8rem; }
 .gamecard.off { opacity: .6; }
 .gamecard button { align-self: flex-start; }
-.gamen { display: inline-flex; gap: 8px; align-items: center; font-size: .85rem; color: var(--muted); }
-.gamen select { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
 .gamestage:not(:empty) { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); }
 .gameprog { color: var(--muted); font-size: .85rem; margin: 0 0 8px; }
 .pairbtns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 8px 0; }
@@ -515,3 +511,46 @@ button:active { transform:translateY(0) scale(.98); }
 .pairbtn span { color: var(--muted); font-size: .85rem; }
 .gamelog { margin: 8px 0; padding-left: 20px; color: var(--muted); font-size: .88rem; }
 .gameround .hint { margin: 4px 0; }
+
+/* Boutons « pilule » : icône, libellé, pastille et chevron */
+button.pillbtn {
+  display: inline-flex; align-items: center; gap: 12px; padding: 10px 18px 10px 14px; border-radius: 999px;
+  background: color-mix(in srgb, var(--fg) 7%, var(--panel)); color: var(--fg);
+  border: 1px solid color-mix(in srgb, var(--fg) 24%, var(--panel)); font: 600 1rem var(--font); line-height: 1.2; box-shadow: none;
+}
+button.pillbtn:not(:disabled):hover { border-color: var(--accent); box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 14%, transparent); }
+.pillbtn .pi { display: inline-grid; place-items: center; min-width: 1.1em; font-size: 1.15rem; line-height: 1; }
+.pillbtn .pb { padding: 3px 12px; border-radius: 999px; background: color-mix(in srgb, var(--fg) 13%, var(--panel)); font-size: .82rem; font-weight: 600; }
+.pillbtn .pc { width: 8px; height: 8px; margin: 0 2px 3px; border: solid currentColor; border-width: 0 2px 2px 0; transform: rotate(45deg); opacity: .8; }
+.pillbtn .pc.right { margin: 0 4px 0 0; transform: rotate(-45deg); }
+#exMore, #collMore { margin-top: 14px; }
+.gamecard { gap: 8px; padding: 18px; }
+.gamecard button.pillbtn { margin-top: 12px; }
+.gameround > button.pillbtn, .gamestage > .duelbar { margin-top: 10px; }
+
+/* Sélecteurs en pilule (année, nombre de manches) */
+.yearpick, .gamen { display: inline-flex; align-items: center; gap: 14px; padding: 6px 8px 6px 18px; border-radius: 999px; font-size: .9rem; font-weight: 600; color: var(--fg);
+  background: color-mix(in srgb, var(--fg) 7%, var(--panel)); border: 1px solid color-mix(in srgb, var(--fg) 24%, var(--panel)); margin: 0; }
+.yearpick select, .gamen select {
+  appearance: none; -webkit-appearance: none; font: 600 .9rem var(--font); color: var(--fg); cursor: pointer;
+  padding: 6px 34px 6px 14px; border: 0; border-radius: 999px; background-color: color-mix(in srgb, var(--fg) 13%, var(--panel));
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 17px) 52%, calc(100% - 12px) 52%; background-size: 5px 5px; background-repeat: no-repeat;
+}
+.yearpick:hover, .gamen:hover { border-color: var(--accent); }
+.pillbtn .pl, .pillbtn .pb { white-space: nowrap; }
+@media (max-width: 480px) {
+  button.pillbtn { gap: 8px; padding: 9px 14px 9px 11px; font-size: .9rem; max-width: 100%; }
+  .pillbtn .pb { padding: 2px 9px; font-size: .75rem; }
+  .yearpick { gap: 10px; padding-left: 14px; font-size: .85rem; }
+}
+@media (max-width: 380px) { .pillbtn .pc { display: none; } }
+
+/* Explorateur : cartes en grille (2 à 3 colonnes selon la largeur) */
+.films.cards { grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
+.films.cards .film { padding: 8px 12px 8px 8px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--fg) 4%, transparent); min-height: 0; transition: background .15s, border-color .15s; }
+.films.cards .film:hover { background: color-mix(in srgb, var(--fg) 8%, transparent); }
+.films.cards .film img, .films.cards .film .ph { width: 54px; height: 81px; }
+.films.cards .film b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.films.cards .film > div { min-width: 0; }
+@media (max-width: 640px) { .films.cards { grid-template-columns: 1fr; } }
